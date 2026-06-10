@@ -827,25 +827,36 @@ export default function KiriCutApp() {
           watermarkZone,
           coverSize,
           (percent) => {
+            setModelProgress(percent);
             if (percent < 100) {
-              setStatusMessage(t(locale, "statusAiModelLoading"));
+              setStatusMessage(
+                t(locale, "aiProcessingProgress", { percent })
+              );
             }
           }
         );
-        const result = brandingPlacement
-          ? await applyShopBranding(
-              coverOnly,
-              shopWatermark,
-              brandingPlacement
-            )
-          : coverOnly;
+        if (!coverOnly?.startsWith("data:image")) {
+          throw new Error(t(locale, "statusWatermarkFail"));
+        }
+        // 先保存修图结果，店铺标失败也不丢图
         updateBatchItem(item.id, {
           status: "done",
           processedDataUrl: coverOnly,
           bgRemovedDataUrl: null,
         });
-        if (item.id === activeItem?.id) {
-          setResultDisplayDataUrl(coverOnly);
+        setResultDisplayDataUrl(coverOnly);
+
+        let result = coverOnly;
+        if (brandingPlacement) {
+          try {
+            result = await applyShopBranding(
+              coverOnly,
+              shopWatermark,
+              brandingPlacement
+            );
+          } catch (brandingError) {
+            console.warn("applyShopBranding failed, using cover only:", brandingError);
+          }
         }
         successes.push({ fileName: item.fileName, dataUrl: result });
       } catch (error) {
@@ -901,6 +912,7 @@ export default function KiriCutApp() {
 
       setStatus("idle");
       setBatchProgressCurrent(0);
+      setModelProgress(0);
 
       if (failed > 0 && successes.length === 0) {
         setStatusMessage(t(locale, "statusWatermarkFail"));
@@ -1204,9 +1216,8 @@ export default function KiriCutApp() {
         <ImageViewer
           locale={locale}
           originalImageDataUrl={originalImageDataUrl}
-          resultDisplayDataUrl={
-            resultDisplayDataUrl ?? processedImageDataUrl
-          }
+          processedImageDataUrl={processedImageDataUrl}
+          resultDisplayDataUrl={resultDisplayDataUrl}
           hasProcessedResult={!!processedImageDataUrl}
           hasImage={batchItems.length > 0}
           hasRemovedBackground={hasRemovedBackground}

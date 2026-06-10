@@ -112,7 +112,11 @@ export async function inpaintWatermarkZone(
   );
 
   if (coverColor) {
-    result = await applyCoverAnchor(result, fillMask, coverColor, 0.72);
+    try {
+      result = await applyCoverAnchor(result, fillMask, coverColor, 0.72);
+    } catch (anchorError) {
+      console.warn("applyCoverAnchor failed, using inpaint result:", anchorError);
+    }
   }
 
   return result;
