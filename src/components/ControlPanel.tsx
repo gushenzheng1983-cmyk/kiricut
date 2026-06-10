@@ -18,6 +18,7 @@ import {
   type ExportSize,
   type ExportSizeMode,
 } from "@/lib/platformExport";
+import { APP_VERSION, BUILD_SHA } from "@/lib/buildInfo";
 import { BETA_SURVEY_URL, hasBetaSurveyLink } from "@/lib/betaFeedback";
 import { downloadSettingsBundle } from "@/lib/settingsSync";
 import {
@@ -1653,6 +1654,9 @@ export default function ControlPanel({
               : t(locale, "footerDownload")
             : t(locale, "footerDownloadNeed")}
         </button>
+        <p className="mt-1.5 text-center text-[9px] text-white/35">
+          v{APP_VERSION} · {BUILD_SHA}
+        </p>
       </footer>
     </div>
   );

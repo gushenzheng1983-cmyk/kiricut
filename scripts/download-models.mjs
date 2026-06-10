@@ -12,8 +12,6 @@ const LAMA_URLS = [
 
 const MODEL_DIR = path.join(ROOT, "public", "models");
 const MODEL_FILE = path.join(MODEL_DIR, "big-lama.onnx");
-const ORT_SRC = path.join(ROOT, "node_modules", "onnxruntime-web", "dist");
-const ORT_DEST = path.join(ROOT, "public", "ort");
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) {
@@ -38,22 +36,6 @@ async function downloadFile(url, dest) {
   console.log(`Saved: ${dest} (${mb} MB)`);
 }
 
-function copyOrtWasm() {
-  if (!fs.existsSync(ORT_SRC)) {
-    console.warn("onnxruntime-web not found, skip WASM copy");
-    return;
-  }
-
-  ensureDir(ORT_DEST);
-  const files = fs
-    .readdirSync(ORT_SRC)
-    .filter((f) => f.endsWith(".wasm") || f.endsWith(".mjs"));
-  for (const file of files) {
-    fs.copyFileSync(path.join(ORT_SRC, file), path.join(ORT_DEST, file));
-  }
-  console.log(`Copied ${files.length} onnxruntime files to public/ort/`);
-}
-
 async function downloadModel() {
   if (fs.existsSync(MODEL_FILE)) {
     const mb = (fs.statSync(MODEL_FILE).size / 1024 / 1024).toFixed(1);
@@ -71,14 +53,13 @@ async function downloadModel() {
   }
 
   console.warn(
-    "LaMa model download failed. Browser will retry on first use, or run: npm run setup-models"
+    "LaMa model download failed. Python service will retry on first request."
   );
   return false;
 }
 
 async function main() {
   ensureDir(MODEL_DIR);
-  copyOrtWasm();
   await downloadModel();
   console.log("Setup finished.");
 }

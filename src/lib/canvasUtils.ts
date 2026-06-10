@@ -120,6 +120,23 @@ export function resizeCanvas(
   return canvas;
 }
 
+/** AI 上传前限制最长边，减轻 nginx/内存压力 */
+export function limitCanvasLongEdge(
+  source: HTMLCanvasElement,
+  maxEdge = 2048
+): HTMLCanvasElement {
+  const w = source.width;
+  const h = source.height;
+  const longEdge = Math.max(w, h);
+  if (longEdge <= maxEdge) return source;
+  const scale = maxEdge / longEdge;
+  return resizeCanvas(
+    source,
+    Math.max(1, Math.round(w * scale)),
+    Math.max(1, Math.round(h * scale))
+  );
+}
+
 /** AI 修图蒙版边缘羽化，避免红框硬切留下方框印 */
 export function computeInpaintFeatherPx(width: number, height: number): number {
   const shortSide = Math.min(width, height);

@@ -244,6 +244,7 @@ export default function ImageViewer({
                   imageDataUrl={
                     processedImageDataUrl ?? resultDisplayDataUrl
                   }
+                  simpleDisplay
                   showTransparentGrid={
                     hasProcessedResult &&
                     hasRemovedBackground &&

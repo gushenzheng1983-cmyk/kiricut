@@ -2,6 +2,7 @@ import {
   AiServiceUnavailableError,
   checkAiServiceHealth,
   fetchAiApi,
+  parseAiImageResponse,
   startEstimatedProgress,
 } from "./aiService";
 
@@ -63,21 +64,10 @@ export async function removeImageBackground(
       body: formData,
     });
 
-    if (!response.ok) {
-      let message = "服务端抠图失败";
-      try {
-        const err = (await response.json()) as { error?: string };
-        if (err.error) message = err.error;
-      } catch {
-        /* ignore */
-      }
-      throw new Error(message);
-    }
-
     onProgress?.(98);
-    const resultBlob = await response.blob();
+    const resultDataUrl = await parseAiImageResponse(response);
     onProgress?.(100);
-    return URL.createObjectURL(resultBlob);
+    return resultDataUrl;
   } finally {
     stopProgress();
   }

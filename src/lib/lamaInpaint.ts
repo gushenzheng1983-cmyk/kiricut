@@ -2,6 +2,7 @@ import {
   AiServiceUnavailableError,
   checkAiServiceHealth,
   fetchAiApi,
+  parseAiImageResponse,
   startEstimatedProgress,
 } from "./aiService";
 import {
@@ -9,7 +10,9 @@ import {
   computeInpaintFeatherPx,
   createBottomRightWatermarkMask,
   createCanvas,
+  limitCanvasLongEdge,
   loadImage,
+  resizeCanvas,
 } from "./canvasUtils";
 
 /** 模型下载镜像（Python 服务 / npm setup-models 使用） */
@@ -20,14 +23,35 @@ export const LAMA_MODEL_LOCAL = "/models/big-lama.onnx";
 
 let serverReady = false;
 
-function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type = "image/jpeg",
+  quality = 0.92
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) =>
         blob ? resolve(blob) : reject(new Error("Canvas 转 Blob 失败")),
-      "image/png"
+      type,
+      quality
     );
   });
+}
+
+function prepareInpaintPayload(
+  imageCanvas: HTMLCanvasElement,
+  maskCanvas: HTMLCanvasElement
+): { image: HTMLCanvasElement; mask: HTMLCanvasElement } {
+  const image = limitCanvasLongEdge(imageCanvas, 2048);
+  if (image === imageCanvas) return { image, mask: maskCanvas };
+  const scaleX = image.width / imageCanvas.width;
+  const scaleY = image.height / imageCanvas.height;
+  const mask = resizeCanvas(
+    maskCanvas,
+    Math.max(1, Math.round(maskCanvas.width * scaleX)),
+    Math.max(1, Math.round(maskCanvas.height * scaleY))
+  );
+  return { image, mask };
 }
 
 async function inpaintViaServer(
@@ -35,9 +59,13 @@ async function inpaintViaServer(
   maskCanvas: HTMLCanvasElement,
   onProgress?: (percent: number) => void
 ): Promise<HTMLCanvasElement> {
+  const { image: uploadImage, mask: uploadMask } = prepareInpaintPayload(
+    imageCanvas,
+    maskCanvas
+  );
   const formData = new FormData();
-  formData.append("image", await canvasToBlob(imageCanvas), "image.png");
-  formData.append("mask", await canvasToBlob(maskCanvas), "mask.png");
+  formData.append("image", await canvasToBlob(uploadImage), "image.jpg");
+  formData.append("mask", await canvasToBlob(uploadMask, "image/png"), "mask.png");
 
   onProgress?.(35);
   const stopProgress = startEstimatedProgress(onProgress, 38, 90, 14000);
@@ -48,39 +76,23 @@ async function inpaintViaServer(
       body: formData,
     });
 
-    if (!response.ok) {
-      let message = "服务端 AI 修图失败";
-      try {
-        const err = (await response.json()) as { error?: string };
-        if (err.error) message = err.error;
-      } catch {
-        /* binary error body */
-      }
-      throw new Error(message);
-    }
-
     onProgress?.(93);
-    const overlayBlob = await response.blob();
-    const overlayUrl = URL.createObjectURL(overlayBlob);
-    try {
-      const overlayImg = await loadImage(overlayUrl);
-      const { canvas: overlayCanvas } = createCanvas(
-        imageCanvas.width,
-        imageCanvas.height
-      );
-      const overlayCtx = overlayCanvas.getContext("2d");
-      if (!overlayCtx) throw new Error("Canvas context を取得できません");
-      overlayCtx.drawImage(
-        overlayImg,
-        0,
-        0,
-        imageCanvas.width,
-        imageCanvas.height
-      );
-      return overlayCanvas;
-    } finally {
-      URL.revokeObjectURL(overlayUrl);
-    }
+    const overlayDataUrl = await parseAiImageResponse(response);
+    const overlayImg = await loadImage(overlayDataUrl);
+    const { canvas: overlayCanvas } = createCanvas(
+      imageCanvas.width,
+      imageCanvas.height
+    );
+    const overlayCtx = overlayCanvas.getContext("2d");
+    if (!overlayCtx) throw new Error("Canvas context を取得できません");
+    overlayCtx.drawImage(
+      overlayImg,
+      0,
+      0,
+      imageCanvas.width,
+      imageCanvas.height
+    );
+    return overlayCanvas;
   } finally {
     stopProgress();
   }
@@ -139,12 +151,21 @@ export async function inpaintWithLama(
   );
   onModelProgress?.(96);
 
-  const finalCanvas = compositeWithSoftMask(
-    imageCanvas,
-    overlayCanvas,
-    maskCanvas,
-    featherPx
-  );
+  let finalCanvas: HTMLCanvasElement;
+  try {
+    finalCanvas = compositeWithSoftMask(
+      imageCanvas,
+      overlayCanvas,
+      maskCanvas,
+      featherPx
+    );
+  } catch (compositeError) {
+    console.warn("compositeWithSoftMask failed, using overlay:", compositeError);
+    const { canvas, ctx } = createCanvas(imageCanvas.width, imageCanvas.height);
+    ctx.drawImage(imageCanvas, 0, 0);
+    ctx.drawImage(overlayCanvas, 0, 0);
+    finalCanvas = canvas;
+  }
 
   onModelProgress?.(100);
   return finalCanvas.toDataURL("image/png");

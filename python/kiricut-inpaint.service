@@ -10,10 +10,16 @@ Environment=LAMA_MODEL_PATH=/home/kiricut/public/models/big-lama.onnx
 Environment=INPAINT_HOST=127.0.0.1
 Environment=INPAINT_PORT=8765
 Environment=AI_MAX_CONCURRENT=2
+Environment=AI_MAX_IMAGE_EDGE=2048
+Environment=AI_SEMAPHORE_TIMEOUT=90
 Environment=AI_WARMUP_BG=1
 ExecStart=/home/kiricut/python/.venv/bin/uvicorn inpaint_server:app --host 127.0.0.1 --port 8765
 Restart=always
 RestartSec=5
+# 4G VPS：限制 Python 进程内存，突发时由 OOM killer 只杀本服务而非整台机器
+MemoryMax=3G
+MemoryHigh=2600M
+OOMScoreAdjust=500
 
 [Install]
 WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+[Unit]
+Description=KiriCut Next.js Frontend
+After=network.target kiricut-inpaint.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/kiricut
+Environment=NODE_ENV=production
+Environment=INPAINT_SERVICE_URL=http://127.0.0.1:8765
+Environment=NODE_OPTIONS=--max-old-space-size=768
+ExecStart=/bin/bash -lc 'cd /home/kiricut && exec npm start'
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/kiricut-next.log
+StandardError=append:/var/log/kiricut-next.log
+MemoryMax=1G
+MemoryHigh=800M
+
+[Install]
+WantedBy=multi-user.target

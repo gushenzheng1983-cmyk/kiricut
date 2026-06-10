@@ -4,20 +4,23 @@
   "private": true,
   "scripts": {
     "setup-models": "node scripts/download-models.mjs",
-    "predev": "node scripts/download-models.mjs",
-    "prebuild": "node scripts/download-models.mjs",
+    "build-info": "node scripts/write-build-info.mjs",
+    "predev": "node scripts/download-models.mjs && node scripts/write-build-info.mjs",
+    "prebuild": "node scripts/download-models.mjs && node scripts/write-build-info.mjs",
     "dev": "next dev",
     "build": "next build --webpack",
-    "start": "next start"
+    "start": "next start",
+    "deploy:vps": "python scripts/deploy-vps.py",
+    "deploy:vps:bootstrap": "python scripts/deploy-vps.py --bootstrap-git",
+    "deploy:vps:tar": "python scripts/deploy-vps.py --sync-tar",
+    "vps:health": "python scripts/vps-ops.py health",
+    "vps:diagnose": "python scripts/vps-ops.py diagnose"
   },
   "dependencies": {
     "jszip": "^3.10.1",
     "next": "16.2.7",
-    "onnxruntime-node": "^1.26.0",
-    "onnxruntime-web": "^1.21.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "sharp": "^0.34.5"
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

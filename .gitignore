@@ -20,9 +20,14 @@
 # production
 /build
 
-# AI runtime (copied by npm run setup-models / predev)
+# AI model binary (downloaded by npm run setup-models)
 /public/models/*.onnx
 /public/ort/
+
+# local deploy audit output
+*vps-audit*.txt
+audit*.txt
+restart-out.txt
 
 # misc
 .DS_Store

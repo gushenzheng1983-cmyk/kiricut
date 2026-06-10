@@ -18,6 +18,8 @@ from fastapi.responses import Response
 from PIL import Image
 
 MODEL_SIZE = 512
+MAX_IMAGE_EDGE = max(512, int(os.environ.get("AI_MAX_IMAGE_EDGE", "2048")))
+SEMAPHORE_TIMEOUT_SEC = max(5, int(os.environ.get("AI_SEMAPHORE_TIMEOUT", "90")))
 
 MODEL_URLS = [
     "https://hf-mirror.com/lxfater/inpaint-web/resolve/main/models/big-lama.onnx",
@@ -35,6 +37,8 @@ _bg_session_lock = threading.Lock()
 # 并发上限：2核4G 默认 2；可通过 AI_MAX_CONCURRENT 环境变量调整
 _MAX_CONCURRENT = max(1, int(os.environ.get("AI_MAX_CONCURRENT", "2")))
 _inference_semaphore = threading.Semaphore(_MAX_CONCURRENT)
+_stats_lock = threading.Lock()
+_active_jobs = 0
 
 
 def _resolve_model_path() -> Path:
@@ -140,9 +144,44 @@ def _run_inference(image_rgb: np.ndarray, mask_gray: np.ndarray) -> np.ndarray:
     return _chw_float32_to_rgb(output_data, MODEL_SIZE)
 
 
+def _limit_image_and_mask(
+    image: Image.Image, mask: Image.Image
+) -> tuple[Image.Image, Image.Image]:
+    width, height = image.size
+    long_edge = max(width, height)
+    if long_edge <= MAX_IMAGE_EDGE:
+        return image, mask
+    scale = MAX_IMAGE_EDGE / long_edge
+    new_w = max(1, int(round(width * scale)))
+    new_h = max(1, int(round(height * scale)))
+    return (
+        image.resize((new_w, new_h), Image.Resampling.LANCZOS),
+        mask.resize((new_w, new_h), Image.Resampling.NEAREST),
+    )
+
+
+def _acquire_inference_slot() -> None:
+    global _active_jobs
+    if not _inference_semaphore.acquire(timeout=SEMAPHORE_TIMEOUT_SEC):
+        raise HTTPException(
+            status_code=503,
+            detail="AI 服务繁忙，请稍后重试",
+        )
+    with _stats_lock:
+        _active_jobs += 1
+
+
+def _release_inference_slot() -> None:
+    global _active_jobs
+    with _stats_lock:
+        _active_jobs = max(0, _active_jobs - 1)
+    _inference_semaphore.release()
+
+
 def inpaint_image(image_bytes: bytes, mask_bytes: bytes) -> bytes:
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     mask = Image.open(io.BytesIO(mask_bytes)).convert("L")
+    image, mask = _limit_image_and_mask(image, mask)
     width, height = image.size
 
     image_512 = image.resize((MODEL_SIZE, MODEL_SIZE), Image.Resampling.LANCZOS)
@@ -181,10 +220,23 @@ def _get_bg_session():
 def remove_background_image(image_bytes: bytes) -> bytes:
     from rembg import remove
 
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    orig_w, orig_h = image.size
+    limited, _ = _limit_image_and_mask(image, image.convert("L"))
+    buf = io.BytesIO()
+    limited.save(buf, format="PNG")
+    limited_bytes = buf.getvalue()
+
     session = _get_bg_session()
-    output = remove(image_bytes, session=session)
+    output = remove(limited_bytes, session=session)
     if not output:
         raise ValueError("抠图结果为空")
+    if limited.size != (orig_w, orig_h):
+        out_img = Image.open(io.BytesIO(output)).convert("RGBA")
+        out_img = out_img.resize((orig_w, orig_h), Image.Resampling.LANCZOS)
+        up_buf = io.BytesIO()
+        out_img.save(up_buf, format="PNG")
+        return up_buf.getvalue()
     return output
 
 
@@ -209,10 +261,15 @@ def warmup():
 
 @app.get("/health")
 def health():
+    with _stats_lock:
+        active = _active_jobs
     return {
         "ok": True,
         "model_loaded": _session is not None,
         "bg_model_loaded": _bg_session is not None,
+        "max_concurrent": _MAX_CONCURRENT,
+        "active_jobs": active,
+        "max_image_edge": MAX_IMAGE_EDGE,
     }
 
 
@@ -226,8 +283,11 @@ async def inpaint(
         mask_bytes = await mask.read()
         if not image_bytes or not mask_bytes:
             raise HTTPException(status_code=400, detail="image 和 mask 不能为空")
-        with _inference_semaphore:
+        _acquire_inference_slot()
+        try:
             result = inpaint_image(image_bytes, mask_bytes)
+        finally:
+            _release_inference_slot()
         return Response(content=result, media_type="image/png")
     except HTTPException:
         raise
@@ -244,8 +304,11 @@ async def remove_background(image: UploadFile = File(...)):
         image_bytes = await image.read()
         if not image_bytes:
             raise HTTPException(status_code=400, detail="image 不能为空")
-        with _inference_semaphore:
+        _acquire_inference_slot()
+        try:
             result = remove_background_image(image_bytes)
+        finally:
+            _release_inference_slot()
         return Response(content=result, media_type="image/png")
     except HTTPException:
         raise

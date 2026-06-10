@@ -15,6 +15,8 @@ import {
 
 interface ImagePanelProps {
   imageDataUrl: string | null;
+  /** 结果预览用简单 img 渲染，避免 flex 布局下 canvas 尺寸为 0 */
+  simpleDisplay?: boolean;
   showTransparentGrid?: boolean;
   placeholder?: string;
   highlightZone?: WatermarkZone | null;
@@ -38,6 +40,7 @@ interface DisplaySize {
 
 export default function ImagePanel({
   imageDataUrl,
+  simpleDisplay = false,
   showTransparentGrid = false,
   placeholder,
   highlightZone = null,
@@ -61,6 +64,7 @@ export default function ImagePanel({
     offsetX: 0,
     offsetY: 0,
   });
+  const [imageReady, setImageReady] = useState(false);
 
   const renderImage = useCallback(() => {
     const container = containerRef.current;
@@ -99,18 +103,22 @@ export default function ImagePanel({
   useEffect(() => {
     if (!imageDataUrl) {
       imageRef.current = null;
+      setImageReady(false);
       return;
     }
 
+    setImageReady(false);
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
       imageRef.current = img;
+      setImageReady(true);
       renderImage();
     };
     img.onerror = () => {
       imageRef.current = null;
-      console.error("ImagePanel: failed to load image");
+      setImageReady(false);
+      console.error("ImagePanel: failed to load image data");
     };
     img.src = imageDataUrl;
   }, [imageDataUrl, renderImage]);
@@ -118,8 +126,17 @@ export default function ImagePanel({
   useEffect(() => {
     const handleResize = () => renderImage();
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [renderImage]);
+    const container = containerRef.current;
+    if (!container) {
+      return () => window.removeEventListener("resize", handleResize);
+    }
+    const observer = new ResizeObserver(() => renderImage());
+    observer.observe(container);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      observer.disconnect();
+    };
+  }, [renderImage, imageDataUrl]);
 
   const handlePickClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!coverColorPickMode || !imageRef.current || !onCoverColorPicked) return;
@@ -140,6 +157,43 @@ export default function ImagePanel({
         className="relative flex h-full w-full items-center justify-center"
       >
         <p className="text-sm text-gray-400">{placeholder}</p>
+      </div>
+    );
+  }
+
+  if (simpleDisplay) {
+    return (
+      <div
+        ref={containerRef}
+        className="relative flex h-full w-full items-center justify-center overflow-hidden p-2"
+      >
+        {showTransparentGrid && (
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage:
+                "linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%)",
+              backgroundSize: "16px 16px",
+              backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
+            }}
+          />
+        )}
+        {!imageReady && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+            <div className="ai-spinner" />
+          </div>
+        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageDataUrl}
+          alt=""
+          className="relative z-[1] max-h-full max-w-full object-contain"
+          onLoad={() => setImageReady(true)}
+          onError={() => {
+            setImageReady(false);
+            console.error("ImagePanel: failed to load image data");
+          }}
+        />
       </div>
     );
   }
@@ -176,6 +230,11 @@ export default function ImagePanel({
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-visible">
+      {!imageReady && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+          <div className="ai-spinner" />
+        </div>
+      )}
       {showTransparentGrid && (
         <div
           className="pointer-events-none absolute inset-0"

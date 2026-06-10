@@ -6,6 +6,11 @@ export const maxDuration = 120;
 const INPAINT_SERVICE_URL =
   process.env.INPAINT_SERVICE_URL ?? "http://127.0.0.1:8765";
 
+function pngBufferToDataUrl(buffer: ArrayBuffer): string {
+  const base64 = Buffer.from(buffer).toString("base64");
+  return `data:image/png;base64,${base64}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -40,8 +45,16 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = await response.arrayBuffer();
-    return new NextResponse(buffer, {
-      headers: { "Content-Type": "image/png" },
+    if (buffer.byteLength < 1024) {
+      return NextResponse.json(
+        { error: `AI 返回图片过小（${buffer.byteLength} bytes）` },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json({
+      image: pngBufferToDataUrl(buffer),
+      bytes: buffer.byteLength,
     });
   } catch (error) {
     console.error("inpaint proxy error:", error);
