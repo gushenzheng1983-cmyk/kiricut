@@ -40,6 +40,18 @@ npm run dev
 
 放到 **`test-samples/`**（见该目录 README）。
 
+## AI 修图（服务端）
+
+AI 推理在 **VPS Python 服务**上运行（`onnxruntime` CPU），浏览器只上传图片+蒙版。
+
+```bash
+# VPS 首次部署 Python 服务
+cd /opt/kiricut
+bash scripts/setup-inpaint-service.sh
+```
+
+Next.js 通过 `INPAINT_SERVICE_URL`（默认 `http://127.0.0.1:8765`）转发到 Python API。
+
 ## GitHub 仓库
 
 **https://github.com/gushenzheng1983-cmyk/kiricut**（默认分支 `master`）

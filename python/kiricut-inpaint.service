@@ -1,0 +1,17 @@
+[Unit]
+Description=KiriCut LaMa Inpaint API (Python ONNX Runtime)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/kiricut/python
+Environment=LAMA_MODEL_PATH=/opt/kiricut/public/models/big-lama.onnx
+Environment=INPAINT_HOST=127.0.0.1
+Environment=INPAINT_PORT=8765
+ExecStart=/opt/kiricut/python/.venv/bin/uvicorn inpaint_server:app --host 127.0.0.1 --port 8765
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

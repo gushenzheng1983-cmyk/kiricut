@@ -4,180 +4,87 @@ import {
   createBottomRightWatermarkMask,
   createCanvas,
   loadImage,
-  resizeCanvas,
 } from "./canvasUtils";
-import { getCachedModel, LAMA_CACHE_KEY, setCachedModel } from "./modelCache";
 
+/** 模型下载镜像（Python 服务 / npm setup-models 使用） */
 export const LAMA_MODEL_URL =
   "https://hf-mirror.com/lxfater/inpaint-web/resolve/main/models/big-lama.onnx";
 
 export const LAMA_MODEL_LOCAL = "/models/big-lama.onnx";
 
-const MODEL_SIZE = 512;
+let serverReady = false;
 
-interface OrtTensor {
-  data: Float32Array | Uint8Array;
-  dims?: number[];
-}
-
-interface OrtSession {
-  inputNames: string[];
-  outputNames: string[];
-  run(feeds: Record<string, OrtTensor>): Promise<Record<string, OrtTensor>>;
-}
-
-interface OrtModule {
-  InferenceSession: {
-    create(
-      buffer: ArrayBuffer,
-      options?: { executionProviders?: string[] }
-    ): Promise<OrtSession>;
-  };
-  Tensor: new (
-    type: string,
-    data: Float32Array | Uint8Array,
-    dims: number[]
-  ) => OrtTensor;
-  env: {
-    wasm: {
-      wasmPaths: string;
-      numThreads: number;
-      simd: boolean;
-      proxy?: boolean;
-    };
-  };
-}
-
-let ortModule: OrtModule | null = null;
-let session: OrtSession | null = null;
-let modelBuffer: ArrayBuffer | null = null;
-let downloadPromise: Promise<void> | null = null;
-
-async function getOrt(): Promise<OrtModule> {
-  if (!ortModule) {
-    ortModule = (await import("onnxruntime-web")) as OrtModule;
-    try {
-      const wasmProbe = await fetch("/ort/ort-wasm-simd-threaded.wasm", {
-        method: "HEAD",
-      });
-      ortModule.env.wasm.wasmPaths = wasmProbe.ok
-        ? "/ort/"
-        : "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
-    } catch {
-      ortModule.env.wasm.wasmPaths =
-        "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
-    }
-    ortModule.env.wasm.numThreads = Math.min(
-      navigator.hardwareConcurrency ?? 4,
-      4
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) =>
+        blob ? resolve(blob) : reject(new Error("Canvas 转 Blob 失败")),
+      "image/png"
     );
-    ortModule.env.wasm.simd = true;
-    ortModule.env.wasm.proxy = false;
-  }
-  return ortModule;
+  });
 }
 
-async function fetchWithProgress(
-  url: string,
-  onProgress?: (percent: number) => void
-): Promise<ArrayBuffer> {
-  const response = await fetch(url);
+async function inpaintViaServer(
+  imageCanvas: HTMLCanvasElement,
+  maskCanvas: HTMLCanvasElement
+): Promise<HTMLCanvasElement> {
+  const formData = new FormData();
+  formData.append("image", await canvasToBlob(imageCanvas), "image.png");
+  formData.append("mask", await canvasToBlob(maskCanvas), "mask.png");
+
+  const response = await fetch("/api/inpaint", {
+    method: "POST",
+    body: formData,
+  });
+
   if (!response.ok) {
-    throw new Error(`モデル取得失敗 (${response.status}): ${url}`);
-  }
-
-  const contentLength = Number(response.headers.get("content-length") ?? 0);
-  const reader = response.body?.getReader();
-
-  if (!reader) {
-    onProgress?.(100);
-    return response.arrayBuffer();
-  }
-
-  const chunks: Uint8Array[] = [];
-  let received = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) {
-      chunks.push(value);
-      received += value.length;
-      if (contentLength > 0) {
-        onProgress?.(Math.round((received / contentLength) * 100));
-      }
-    }
-  }
-
-  const buffer = new Uint8Array(received);
-  let offset = 0;
-  for (const chunk of chunks) {
-    buffer.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  onProgress?.(100);
-  return buffer.buffer;
-}
-
-async function loadLamaModelBuffer(
-  onProgress?: (percent: number) => void
-): Promise<ArrayBuffer> {
-  if (modelBuffer) return modelBuffer;
-
-  const cached = await getCachedModel(LAMA_CACHE_KEY);
-  if (cached) {
-    modelBuffer = cached;
-    onProgress?.(100);
-    return cached;
-  }
-
-  const sources = [
-    LAMA_MODEL_LOCAL,
-    LAMA_MODEL_URL,
-    "https://hf-mirror.com/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx",
-  ];
-  let lastError: Error | null = null;
-
-  for (const url of sources) {
+    let message = "服务端 AI 修图失败";
     try {
-      const buffer = await fetchWithProgress(url, onProgress);
-      modelBuffer = buffer;
-      await setCachedModel(LAMA_CACHE_KEY, buffer);
-      return buffer;
-    } catch (error) {
-      lastError =
-        error instanceof Error ? error : new Error("モデル読み込み失敗");
+      const err = (await response.json()) as { error?: string };
+      if (err.error) message = err.error;
+    } catch {
+      /* binary error body */
     }
+    throw new Error(message);
   }
 
-  throw lastError ?? new Error("LaMaモデルの読み込みに失敗しました");
+  const overlayBlob = await response.blob();
+  const overlayUrl = URL.createObjectURL(overlayBlob);
+  try {
+    const overlayImg = await loadImage(overlayUrl);
+    const { canvas: overlayCanvas } = createCanvas(
+      imageCanvas.width,
+      imageCanvas.height
+    );
+    const overlayCtx = overlayCanvas.getContext("2d");
+    if (!overlayCtx) throw new Error("Canvas context を取得できません");
+    overlayCtx.drawImage(overlayImg, 0, 0, imageCanvas.width, imageCanvas.height);
+    return overlayCanvas;
+  } finally {
+    URL.revokeObjectURL(overlayUrl);
+  }
 }
 
 export function isLamaModelReady(): boolean {
-  return modelBuffer !== null && session !== null;
+  return serverReady;
 }
 
+/** 检查 VPS Python 推理服务是否可用 */
 export async function preloadLamaModel(
   onProgress?: (percent: number) => void
 ): Promise<void> {
-  if (session) return;
-
-  if (!downloadPromise) {
-    downloadPromise = (async () => {
-      await getOrt();
-      await loadLamaModelBuffer(onProgress);
-      if (!modelBuffer) {
-        throw new Error("LaMaモデルが読み込まれていません");
-      }
-      const ort = await getOrt();
-      session = await ort.InferenceSession.create(modelBuffer, {
-        executionProviders: ["wasm"],
-      });
-    })();
+  onProgress?.(20);
+  const response = await fetch("/api/inpaint/health", { cache: "no-store" });
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    throw new Error(
+      data.error ?? "AI 推理服务未启动，请联系管理员"
+    );
   }
-
-  await downloadPromise;
+  onProgress?.(100);
+  serverReady = true;
 }
 
 export async function downloadLamaModel(
@@ -186,220 +93,14 @@ export async function downloadLamaModel(
   await preloadLamaModel(onProgress);
 }
 
-async function getSession(): Promise<OrtSession> {
-  await preloadLamaModel();
-  if (!session) {
-    throw new Error("LaMaセッションの初期化に失敗しました");
-  }
-  return session;
-}
-
-function imageDataToChwUint8(imageData: ImageData): Uint8Array {
-  const { width, height, data } = imageData;
-  const size = width * height;
-  const chw = new Uint8Array(3 * size);
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      const pi = y * width + x;
-      chw[pi] = data[i];
-      chw[size + pi] = data[i + 1];
-      chw[2 * size + pi] = data[i + 2];
-    }
-  }
-
-  return chw;
-}
-
-/** 白=修復対象(255)、黒=保持(0) */
-function maskDataToChwUint8(imageData: ImageData): Uint8Array {
-  const { width, height, data } = imageData;
-  const mask = new Uint8Array(width * height);
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
-      mask[y * width + x] = gray > 127 ? 255 : 0;
-    }
-  }
-
-  return mask;
-}
-
-function imageDataToChwFloat32(imageData: ImageData): Float32Array {
-  const { width, height, data } = imageData;
-  const size = width * height;
-  const chw = new Float32Array(3 * size);
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      const pi = y * width + x;
-      chw[pi] = data[i] / 255;
-      chw[size + pi] = data[i + 1] / 255;
-      chw[2 * size + pi] = data[i + 2] / 255;
-    }
-  }
-
-  return chw;
-}
-
-function maskDataToChwFloat32(imageData: ImageData): Float32Array {
-  const { width, height, data } = imageData;
-  const mask = new Float32Array(width * height);
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
-      mask[y * width + x] = gray > 127 ? 1.0 : 0.0;
-    }
-  }
-
-  return mask;
-}
-
-function chwToImageData(
-  data: Float32Array | Uint8Array,
-  width: number,
-  height: number
-): ImageData {
-  const imageData = new ImageData(width, height);
-  const size = width * height;
-  const isFloat = data instanceof Float32Array;
-  let maxVal = 255;
-  if (isFloat) {
-    for (let i = 0; i < Math.min(500, data.length); i++) {
-      if (data[i] > maxVal) maxVal = data[i];
-    }
-  }
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const pi = y * width + x;
-      const di = pi * 4;
-
-      const read = (idx: number) => {
-        const v = data[idx];
-        if (isFloat) {
-          return maxVal <= 1.5
-            ? Math.round(Math.min(255, Math.max(0, v * 255)))
-            : Math.round(Math.min(255, Math.max(0, v)));
-        }
-        return v;
-      };
-
-      imageData.data[di] = read(pi);
-      imageData.data[di + 1] = read(size + pi);
-      imageData.data[di + 2] = read(2 * size + pi);
-      imageData.data[di + 3] = 255;
-    }
-  }
-
-  return imageData;
-}
-
-function resolveInputNames(names: string[]) {
-  const imageName =
-    names.find((n) => n.toLowerCase().includes("image")) ?? names[0];
-  const maskName =
-    names.find((n) => n.toLowerCase().includes("mask")) ??
-    names.find((n) => n !== imageName) ??
-    names[1];
-  return { imageName, maskName };
-}
-
-async function runInference(
-  imageCanvas: HTMLCanvasElement,
-  maskCanvas: HTMLCanvasElement,
-  inferenceSession: OrtSession,
-  ort: OrtModule,
-  featherPx = computeInpaintFeatherPx(imageCanvas.width, imageCanvas.height)
-): Promise<HTMLCanvasElement> {
-  const resizedImage = resizeCanvas(imageCanvas, MODEL_SIZE, MODEL_SIZE);
-  const resizedMask = resizeCanvas(maskCanvas, MODEL_SIZE, MODEL_SIZE);
-
-  const imageCtx = resizedImage.getContext("2d")!;
-  const maskCtx = resizedMask.getContext("2d")!;
-  const imageData = imageCtx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
-  const maskData = maskCtx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
-
-  const { imageName, maskName } = resolveInputNames(
-    inferenceSession.inputNames
-  );
-
-  const feeds: Record<string, OrtTensor> = {};
-
-  const tryUint8 = () => {
-    feeds[imageName] = new ort.Tensor(
-      "uint8",
-      imageDataToChwUint8(imageData),
-      [1, 3, MODEL_SIZE, MODEL_SIZE]
-    );
-    feeds[maskName] = new ort.Tensor(
-      "uint8",
-      maskDataToChwUint8(maskData),
-      [1, 1, MODEL_SIZE, MODEL_SIZE]
-    );
-  };
-
-  const tryFloat32 = () => {
-    feeds[imageName] = new ort.Tensor(
-      "float32",
-      imageDataToChwFloat32(imageData),
-      [1, 3, MODEL_SIZE, MODEL_SIZE]
-    );
-    feeds[maskName] = new ort.Tensor(
-      "float32",
-      maskDataToChwFloat32(maskData),
-      [1, 1, MODEL_SIZE, MODEL_SIZE]
-    );
-  };
-
-  let results: Record<string, OrtTensor>;
-  try {
-    tryUint8();
-    results = await inferenceSession.run(feeds);
-  } catch {
-    tryFloat32();
-    results = await inferenceSession.run(feeds);
-  }
-
-  const outputTensor = results[inferenceSession.outputNames[0]];
-  const outputData = outputTensor.data as Float32Array | Uint8Array;
-
-  const resultImageData = chwToImageData(outputData, MODEL_SIZE, MODEL_SIZE);
-  const { canvas: result512, ctx: resultCtx } = createCanvas(
-    MODEL_SIZE,
-    MODEL_SIZE
-  );
-  resultCtx.putImageData(resultImageData, 0, 0);
-
-  const resultFull = resizeCanvas(
-    result512,
-    imageCanvas.width,
-    imageCanvas.height
-  );
-
-  return compositeWithSoftMask(
-    imageCanvas,
-    resultFull,
-    maskCanvas,
-    featherPx
-  );
-}
-
 export async function inpaintWithLama(
   imageDataUrl: string,
   maskCanvas: HTMLCanvasElement,
   onModelProgress?: (percent: number) => void,
   options?: { featherPx?: number }
 ): Promise<string> {
-  const ort = await getOrt();
-  await downloadLamaModel(onModelProgress);
-  const inferenceSession = await getSession();
+  onModelProgress?.(10);
+  await preloadLamaModel(onModelProgress);
 
   const image = await loadImage(imageDataUrl);
   const { canvas: imageCanvas } = createCanvas(
@@ -414,14 +115,18 @@ export async function inpaintWithLama(
     options?.featherPx ??
     computeInpaintFeatherPx(imageCanvas.width, imageCanvas.height);
 
-  const finalCanvas = await runInference(
+  onModelProgress?.(30);
+  const overlayCanvas = await inpaintViaServer(imageCanvas, maskCanvas);
+  onModelProgress?.(95);
+
+  const finalCanvas = compositeWithSoftMask(
     imageCanvas,
+    overlayCanvas,
     maskCanvas,
-    inferenceSession,
-    ort,
     featherPx
   );
 
+  onModelProgress?.(100);
   return finalCanvas.toDataURL("image/png");
 }
 
