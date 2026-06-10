@@ -108,6 +108,10 @@ export default function ImagePanel({
       imageRef.current = img;
       renderImage();
     };
+    img.onerror = () => {
+      imageRef.current = null;
+      console.error("ImagePanel: failed to load image");
+    };
     img.src = imageDataUrl;
   }, [imageDataUrl, renderImage]);
 

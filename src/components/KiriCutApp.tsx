@@ -420,10 +420,17 @@ export default function KiriCutApp() {
       setResultDisplayDataUrl(null);
       return;
     }
+    // 先立刻显示修图结果，避免合成层异步失败时右侧一直空白
+    setResultDisplayDataUrl(processedImageDataUrl);
     let cancelled = false;
-    composeDisplayUrl(processedImageDataUrl, bgRemovedDataUrl).then((url) => {
-      if (!cancelled) setResultDisplayDataUrl(url);
-    });
+    composeDisplayUrl(processedImageDataUrl, bgRemovedDataUrl)
+      .then((url) => {
+        if (!cancelled) setResultDisplayDataUrl(url);
+      })
+      .catch((error) => {
+        console.error("composeDisplayUrl failed:", error);
+        if (!cancelled) setResultDisplayDataUrl(processedImageDataUrl);
+      });
     return () => {
       cancelled = true;
     };
@@ -837,6 +844,9 @@ export default function KiriCutApp() {
           processedDataUrl: coverOnly,
           bgRemovedDataUrl: null,
         });
+        if (item.id === activeItem?.id) {
+          setResultDisplayDataUrl(coverOnly);
+        }
         successes.push({ fileName: item.fileName, dataUrl: result });
       } catch (error) {
         failed++;
@@ -1194,7 +1204,9 @@ export default function KiriCutApp() {
         <ImageViewer
           locale={locale}
           originalImageDataUrl={originalImageDataUrl}
-          resultDisplayDataUrl={resultDisplayDataUrl}
+          resultDisplayDataUrl={
+            resultDisplayDataUrl ?? processedImageDataUrl
+          }
           hasProcessedResult={!!processedImageDataUrl}
           hasImage={batchItems.length > 0}
           hasRemovedBackground={hasRemovedBackground}
