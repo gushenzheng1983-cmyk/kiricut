@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KiriCut（キリカット）
 
-## Getting Started
+跨境 / 电商商品图批量处理：去平台水印、可选 AI 修图、店铺标识、背景处理。
 
-First, run the development server:
+**项目唯一目录：** `C:\Users\feng3\kiricut`  
+（代码、文档、测试样图都放在这里，不要在别的文件夹找。）
 
-```bash
+## 启动
+
+```powershell
+cd C:\Users\feng3\kiricut
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+浏览器打开：**http://localhost:3000**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+强刷页面：`Ctrl + Shift + R`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 常用操作
 
-## Learn More
+| 场景 | 操作 |
+|------|------|
+| 角落小水印 | 预设「角落修图」→ AI 修图 → 对准红框 |
+| Mercari 斜水印 | 点 **メルカリ** 或「斜角水印」→ 拖黄点 / 侧栏角度滑块 → AI 修图 |
+| 批量 | 一次最多 120 张，第一张确认后再跑全批 |
+| 设置备份 | 侧栏导出 JSON，换电脑可导入 |
 
-To learn more about Next.js, take a look at the following resources:
+## 文档（都在本仓库 `docs/`）
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| 文件 | 内容 |
+|------|------|
+| [docs/STATUS.md](docs/STATUS.md) | 当前进度、待办 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 代码结构、关键文件 |
+| [docs/TEST.md](docs/TEST.md) | 怎么测、样图放哪 |
+| [AGENTS.md](AGENTS.md) | 给 Cursor / AI 用的项目说明 |
+| [docs/agent/](docs/agent/) | AI 整理的备忘、导出（自动放这里） |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 测试样图
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+放到 **`test-samples/`**（见该目录 README）。

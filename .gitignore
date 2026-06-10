@@ -20,6 +20,10 @@
 # production
 /build
 
+# AI runtime (copied by npm run setup-models / predev)
+/public/models/*.onnx
+/public/ort/
+
 # misc
 .DS_Store
 *.pem
