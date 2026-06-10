@@ -39,3 +39,25 @@ npm run dev
 ## 测试样图
 
 放到 **`test-samples/`**（见该目录 README）。
+
+## 上传 GitHub
+
+本地已整理好提交；**大模型不放进仓库**（`npm install` 后自动下载）。
+
+1. 在 GitHub 新建空仓库（如 `kiricut`），不要勾选 README
+2. 在本机执行（把 URL 换成你的）：
+
+```powershell
+cd C:\Users\feng3\kiricut
+git remote add origin https://github.com/你的用户名/kiricut.git
+git push -u origin master
+```
+
+克隆到新电脑：
+
+```powershell
+git clone https://github.com/你的用户名/kiricut.git
+cd kiricut
+npm install
+npm run dev
+```
