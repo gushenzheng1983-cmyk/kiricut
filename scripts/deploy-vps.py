@@ -83,7 +83,10 @@ fi
 
 echo "=== python deps ==="
 cd /home/kiricut/python
-test -d .venv || python3 -m venv .venv
+if [ ! -x .venv/bin/pip ]; then
+  rm -rf .venv
+  python3 -m venv .venv
+fi
 .venv/bin/pip install -q -U pip
 .venv/bin/pip install -q -r requirements.txt
 
@@ -170,9 +173,10 @@ if [ ! -d .git ]; then
   git remote add origin {GIT_REMOTE} 2>/dev/null || git remote set-url origin {GIT_REMOTE}
 fi
 git fetch origin
-git checkout -B {BRANCH} origin/{BRANCH}
+git branch -M {BRANCH} 2>/dev/null || true
 git reset --hard origin/{BRANCH}
-git clean -fd
+# 勿用 git clean -fdx：会删掉 python/.venv 与 node_modules
+git clean -fd -e node_modules -e python/.venv -e public/models
 git rev-parse --short HEAD
 """
     run_remote(client, cmd, timeout=180)
