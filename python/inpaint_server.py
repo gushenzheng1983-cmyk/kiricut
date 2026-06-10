@@ -1,6 +1,7 @@
 """
-KiriCut LaMa inpaint API — Python + ONNX Runtime (CPU).
-Browser uploads image + mask; server returns upscaled inpaint overlay PNG.
+KiriCut AI API — Python + ONNX Runtime (CPU).
+- POST /inpaint        : LaMa 修图（image + mask）
+- POST /remove-background : 抠图（rembg / u2net）
 """
 
 from __future__ import annotations
@@ -28,6 +29,9 @@ DEFAULT_MODEL_PATH = ROOT / "public" / "models" / "big-lama.onnx"
 
 _session: ort.InferenceSession | None = None
 _session_lock = threading.Lock()
+
+_bg_session = None
+_bg_session_lock = threading.Lock()
 
 
 def _resolve_model_path() -> Path:
@@ -156,7 +160,32 @@ def inpaint_image(image_bytes: bytes, mask_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
-app = FastAPI(title="KiriCut Inpaint API", version="1.0.0")
+def _get_bg_session():
+    global _bg_session
+    if _bg_session is not None:
+        return _bg_session
+    with _bg_session_lock:
+        if _bg_session is not None:
+            return _bg_session
+        from rembg import new_session
+
+        print("Loading background removal model (u2net)...")
+        _bg_session = new_session("u2net")
+        print("Background removal model ready.")
+        return _bg_session
+
+
+def remove_background_image(image_bytes: bytes) -> bytes:
+    from rembg import remove
+
+    session = _get_bg_session()
+    output = remove(image_bytes, session=session)
+    if not output:
+        raise ValueError("抠图结果为空")
+    return output
+
+
+app = FastAPI(title="KiriCut AI API", version="1.1.0")
 
 
 @app.on_event("startup")
@@ -165,13 +194,21 @@ def warmup():
         _get_session()
         print("LaMa model warmed up.")
     except Exception as exc:
-        print(f"Warmup failed (will retry on first request): {exc}")
+        print(f"LaMa warmup failed (will retry on first request): {exc}")
+    try:
+        _get_bg_session()
+        print("Background removal model warmed up.")
+    except Exception as exc:
+        print(f"BG warmup failed (will retry on first request): {exc}")
 
 
 @app.get("/health")
 def health():
-    loaded = _session is not None
-    return {"ok": True, "model_loaded": loaded}
+    return {
+        "ok": True,
+        "model_loaded": _session is not None,
+        "bg_model_loaded": _bg_session is not None,
+    }
 
 
 @app.post("/inpaint")
@@ -193,6 +230,25 @@ async def inpaint(
     except Exception as exc:
         print(f"Inpaint error: {exc}")
         raise HTTPException(status_code=500, detail=f"AI 修图失败: {exc}") from exc
+
+
+@app.post("/remove-background")
+async def remove_background(image: UploadFile = File(...)):
+    try:
+        image_bytes = await image.read()
+        if not image_bytes:
+            raise HTTPException(status_code=400, detail="image 不能为空")
+        result = remove_background_image(image_bytes)
+        return Response(content=result, media_type="image/png")
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        print(f"Remove-background error: {exc}")
+        raise HTTPException(
+            status_code=500, detail=f"抠图失败: {exc}"
+        ) from exc
 
 
 if __name__ == "__main__":

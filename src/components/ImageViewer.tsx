@@ -7,7 +7,7 @@ import BatchImageList from "./BatchImageList";
 import { type Locale, getPlatformLabel, t } from "@/lib/i18n";
 import type { CoverZoneRect } from "@/lib/coverZoneRect";
 import type { CoverSize } from "@/lib/watermarkZones";
-import type { BatchImageItem, WatermarkZone } from "@/types";
+import type { BatchImageItem, ProcessingStatus, WatermarkZone } from "@/types";
 
 interface ImageViewerProps {
   locale: Locale;
@@ -17,6 +17,8 @@ interface ImageViewerProps {
   hasImage: boolean;
   hasRemovedBackground: boolean;
   isProcessing?: boolean;
+  processingStatus?: ProcessingStatus;
+  modelProgress?: number;
   backgroundType: string;
   watermarkZone: WatermarkZone | null;
   coverColor: string;
@@ -47,6 +49,8 @@ export default function ImageViewer({
   hasImage,
   hasRemovedBackground,
   isProcessing = false,
+  processingStatus = "idle",
+  modelProgress = 0,
   backgroundType,
   watermarkZone,
   coverColor,
@@ -196,8 +200,8 @@ export default function ImageViewer({
                 )}
               </div>
             )}
-          <div className="flex min-h-0 flex-1 flex-row">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col border-r border-gray-200">
+          <div className="relative flex min-h-0 flex-1 flex-col md:flex-row">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col border-b border-gray-200 md:border-b-0 md:border-r">
               <div className="shrink-0 border-b border-gray-100 bg-gray-50 px-4 py-2">
                 <span className="text-xs font-semibold text-gray-600">
                   {t(locale, "originalLabel")}
@@ -244,6 +248,31 @@ export default function ImageViewer({
                 />
               </div>
             </div>
+
+            {(processingStatus === "inpainting" ||
+              processingStatus === "removing-background") && (
+              <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[2px]">
+                <div className="mx-4 flex max-w-xs flex-col items-center gap-3 rounded-2xl bg-white/95 px-6 py-5 shadow-xl">
+                  <div className="ai-spinner" />
+                  <p className="text-center text-sm font-semibold text-violet-700">
+                    {processingStatus === "removing-background"
+                      ? t(locale, "aiProcessingBgHint")
+                      : t(locale, "aiProcessingHint")}
+                  </p>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-violet-100">
+                    <div
+                      className="ai-progress-bar h-full rounded-full transition-all duration-300"
+                      style={{ width: `${Math.max(6, modelProgress)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {t(locale, "aiProcessingProgress", {
+                      percent: modelProgress,
+                    })}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           </div>
         )}

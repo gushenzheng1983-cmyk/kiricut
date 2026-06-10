@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BatchConfirmDialog from "./BatchConfirmDialog";
 import ImageViewer from "./ImageViewer";
 import ControlPanel from "./ControlPanel";
+import {
+  AI_SERVICE_UNAVAILABLE,
+  isAiServiceUnavailable,
+} from "@/lib/aiService";
 import { removeImageBackground } from "@/lib/backgroundRemoval";
 import { preloadAllModels } from "@/lib/preloadModels";
 import {
@@ -81,6 +85,22 @@ import {
 
 const MAX_BATCH = 120;
 
+function formatUserError(error: unknown, locale: Locale): string {
+  if (isAiServiceUnavailable(error)) {
+    return t(locale, "aiServiceUnavailable");
+  }
+  if (
+    error instanceof Error &&
+    (error.message === AI_SERVICE_UNAVAILABLE ||
+      error.message.includes("AI 推理服务") ||
+      error.message.includes("无法连接 AI"))
+  ) {
+    return t(locale, "aiServiceUnavailable");
+  }
+  if (error instanceof Error) return error.message;
+  return t(locale, "statusWatermarkFail");
+}
+
 const DEFAULT_BACKGROUND: BackgroundSettings = {
   type: "transparent",
   solidColor: "#ffffff",
@@ -115,7 +135,8 @@ export default function KiriCutApp() {
   const [statusMessage, setStatusMessage] = useState("");
   const [modelProgress, setModelProgress] = useState(0);
   const [modelsReady, setModelsReady] = useState(true);
-  const [preloadLabel, setPreloadLabel] = useState("背景除去モデル");
+  const [aiServiceOk, setAiServiceOk] = useState(true);
+  const [preloadLabel, setPreloadLabel] = useState("AI 服务");
   const [backgroundSettings, setBackgroundSettings] =
     useState<BackgroundSettings>(DEFAULT_BACKGROUND);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -248,11 +269,16 @@ export default function KiriCutApp() {
       .then(() => {
         if (!cancelled) {
           setModelsReady(true);
+          setAiServiceOk(true);
           setModelProgress(100);
         }
       })
       .catch(() => {
-        if (!cancelled) setModelsReady(true);
+        if (!cancelled) {
+          setModelsReady(false);
+          setAiServiceOk(false);
+          setStatusMessage(t(locale, "aiServiceUnavailable"));
+        }
       });
     return () => {
       cancelled = true;
@@ -414,9 +440,17 @@ export default function KiriCutApp() {
       if (!cancelled) setModelProgress(percent);
     })
       .then(() => {
-        if (!cancelled) setModelsReady(true);
+        if (!cancelled) {
+          setModelsReady(true);
+          setAiServiceOk(true);
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) {
+          setModelsReady(false);
+          setAiServiceOk(false);
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -649,8 +683,11 @@ export default function KiriCutApp() {
         customRect,
         (percent) => {
           onModelProgress?.(percent);
+          setModelProgress(percent);
           if (percent < 100) {
-            setStatusMessage(t(locale, "statusAiModelLoading"));
+            setStatusMessage(
+              t(locale, "aiProcessingProgress", { percent })
+            );
           }
         },
         anchorColor
@@ -805,10 +842,7 @@ export default function KiriCutApp() {
         failed++;
         updateBatchItem(item.id, {
           status: "error",
-          error:
-            error instanceof Error
-              ? error.message
-              : t(locale, "statusWatermarkFail"),
+          error: formatUserError(error, locale),
         });
       }
     }
@@ -871,9 +905,9 @@ export default function KiriCutApp() {
     } catch (error) {
       setStatus("idle");
       setBatchProgressCurrent(0);
-      setStatusMessage(
-        error instanceof Error ? error.message : t(locale, "statusWatermarkFail")
-      );
+      setModelProgress(0);
+      setStatusMessage(formatUserError(error, locale));
+      if (isAiServiceUnavailable(error)) setAiServiceOk(false);
     }
   };
 
@@ -944,9 +978,9 @@ export default function KiriCutApp() {
     } catch (error) {
       setStatus("idle");
       setBatchProgressCurrent(0);
-      setStatusMessage(
-        error instanceof Error ? error.message : t(locale, "statusWatermarkFail")
-      );
+      setModelProgress(0);
+      setStatusMessage(formatUserError(error, locale));
+      if (isAiServiceUnavailable(error)) setAiServiceOk(false);
     }
   };
 
@@ -983,21 +1017,32 @@ export default function KiriCutApp() {
 
     try {
       setStatus("removing-background");
-      setStatusMessage(t(locale, "processingBg"));
+      setModelProgress(0);
+      setStatusMessage(t(locale, "aiProcessingBgHint"));
 
-      const result = await removeImageBackground(source);
+      const result = await removeImageBackground(source, (percent) => {
+        setModelProgress(percent);
+        setStatusMessage(t(locale, "aiProcessingProgress", { percent }));
+      });
       const prevBg = activeItem.bgRemovedDataUrl;
       if (prevBg?.startsWith("blob:")) {
         URL.revokeObjectURL(prevBg);
       }
       updateBatchItem(activeItem.id, { bgRemovedDataUrl: result });
       setStatus("idle");
+      setModelProgress(0);
       setStatusMessage(t(locale, "statusBgDone"));
     } catch (error) {
       setStatus("idle");
+      setModelProgress(0);
       setStatusMessage(
-        error instanceof Error ? error.message : t(locale, "statusBgFail")
+        isAiServiceUnavailable(error)
+          ? t(locale, "aiServiceUnavailable")
+          : error instanceof Error
+            ? error.message
+            : t(locale, "statusBgFail")
       );
+      if (isAiServiceUnavailable(error)) setAiServiceOk(false);
     }
   };
 
@@ -1133,7 +1178,7 @@ export default function KiriCutApp() {
   return (
     <div
       ref={workspaceRef}
-      className="flex h-screen w-screen flex-col md:flex-row"
+      className="flex h-[100dvh] w-screen flex-col md:h-screen md:flex-row"
     >
       {pendingBatchAction && isBatchMode && (
         <BatchConfirmDialog
@@ -1145,7 +1190,7 @@ export default function KiriCutApp() {
           onCancel={() => setPendingBatchAction(null)}
         />
       )}
-      <section className="relative min-h-0 flex-1 bg-white md:w-[68%]">
+      <section className="relative flex-1 min-h-[48dvh] bg-white md:min-h-0 md:w-[68%]">
         <ImageViewer
           locale={locale}
           originalImageDataUrl={originalImageDataUrl}
@@ -1154,6 +1199,8 @@ export default function KiriCutApp() {
           hasImage={batchItems.length > 0}
           hasRemovedBackground={hasRemovedBackground}
           isProcessing={isProcessing}
+          processingStatus={status}
+          modelProgress={modelProgress}
           backgroundType={backgroundSettings.type}
           watermarkZone={watermarkZone}
           coverColor={previewCoverColor}
@@ -1181,7 +1228,7 @@ export default function KiriCutApp() {
         />
       </section>
 
-      <aside className="flex min-h-0 shrink-0 flex-col md:h-full md:w-[min(100%,22rem)] md:max-w-[22rem] md:min-w-[17.5rem]">
+      <aside className="flex max-h-[46dvh] min-h-0 shrink-0 flex-col overflow-hidden border-t border-white/10 md:max-h-none md:h-full md:w-[min(100%,22rem)] md:max-w-[22rem] md:min-w-[17.5rem] md:border-t-0">
         <ControlPanel
           locale={locale}
           onLocaleChange={handleLocaleChange}
@@ -1191,6 +1238,7 @@ export default function KiriCutApp() {
           isBatchMode={isBatchMode}
           hasProcessedResult={batchDoneCount > 0 || !!processedImageDataUrl}
           hasRemovedBackground={hasRemovedBackground}
+          aiServiceOk={aiServiceOk}
           modelsReady={modelsReady}
           preloadLabel={preloadLabel}
           status={status}

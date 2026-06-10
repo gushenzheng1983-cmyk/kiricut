@@ -1,4 +1,10 @@
 import {
+  AiServiceUnavailableError,
+  checkAiServiceHealth,
+  fetchAiApi,
+  startEstimatedProgress,
+} from "./aiService";
+import {
   compositeWithSoftMask,
   computeInpaintFeatherPx,
   createBottomRightWatermarkMask,
@@ -26,42 +32,57 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 
 async function inpaintViaServer(
   imageCanvas: HTMLCanvasElement,
-  maskCanvas: HTMLCanvasElement
+  maskCanvas: HTMLCanvasElement,
+  onProgress?: (percent: number) => void
 ): Promise<HTMLCanvasElement> {
   const formData = new FormData();
   formData.append("image", await canvasToBlob(imageCanvas), "image.png");
   formData.append("mask", await canvasToBlob(maskCanvas), "mask.png");
 
-  const response = await fetch("/api/inpaint", {
-    method: "POST",
-    body: formData,
-  });
+  onProgress?.(35);
+  const stopProgress = startEstimatedProgress(onProgress, 38, 90, 14000);
 
-  if (!response.ok) {
-    let message = "服务端 AI 修图失败";
-    try {
-      const err = (await response.json()) as { error?: string };
-      if (err.error) message = err.error;
-    } catch {
-      /* binary error body */
-    }
-    throw new Error(message);
-  }
-
-  const overlayBlob = await response.blob();
-  const overlayUrl = URL.createObjectURL(overlayBlob);
   try {
-    const overlayImg = await loadImage(overlayUrl);
-    const { canvas: overlayCanvas } = createCanvas(
-      imageCanvas.width,
-      imageCanvas.height
-    );
-    const overlayCtx = overlayCanvas.getContext("2d");
-    if (!overlayCtx) throw new Error("Canvas context を取得できません");
-    overlayCtx.drawImage(overlayImg, 0, 0, imageCanvas.width, imageCanvas.height);
-    return overlayCanvas;
+    const response = await fetchAiApi("/api/inpaint", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let message = "服务端 AI 修图失败";
+      try {
+        const err = (await response.json()) as { error?: string };
+        if (err.error) message = err.error;
+      } catch {
+        /* binary error body */
+      }
+      throw new Error(message);
+    }
+
+    onProgress?.(93);
+    const overlayBlob = await response.blob();
+    const overlayUrl = URL.createObjectURL(overlayBlob);
+    try {
+      const overlayImg = await loadImage(overlayUrl);
+      const { canvas: overlayCanvas } = createCanvas(
+        imageCanvas.width,
+        imageCanvas.height
+      );
+      const overlayCtx = overlayCanvas.getContext("2d");
+      if (!overlayCtx) throw new Error("Canvas context を取得できません");
+      overlayCtx.drawImage(
+        overlayImg,
+        0,
+        0,
+        imageCanvas.width,
+        imageCanvas.height
+      );
+      return overlayCanvas;
+    } finally {
+      URL.revokeObjectURL(overlayUrl);
+    }
   } finally {
-    URL.revokeObjectURL(overlayUrl);
+    stopProgress();
   }
 }
 
@@ -74,14 +95,9 @@ export async function preloadLamaModel(
   onProgress?: (percent: number) => void
 ): Promise<void> {
   onProgress?.(20);
-  const response = await fetch("/api/inpaint/health", { cache: "no-store" });
-  if (!response.ok) {
-    const data = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
-    throw new Error(
-      data.error ?? "AI 推理服务未启动，请联系管理员"
-    );
+  const health = await checkAiServiceHealth();
+  if (!health.ok) {
+    throw new AiServiceUnavailableError();
   }
   onProgress?.(100);
   serverReady = true;
@@ -99,7 +115,7 @@ export async function inpaintWithLama(
   onModelProgress?: (percent: number) => void,
   options?: { featherPx?: number }
 ): Promise<string> {
-  onModelProgress?.(10);
+  onModelProgress?.(8);
   await preloadLamaModel(onModelProgress);
 
   const image = await loadImage(imageDataUrl);
@@ -115,9 +131,13 @@ export async function inpaintWithLama(
     options?.featherPx ??
     computeInpaintFeatherPx(imageCanvas.width, imageCanvas.height);
 
-  onModelProgress?.(30);
-  const overlayCanvas = await inpaintViaServer(imageCanvas, maskCanvas);
-  onModelProgress?.(95);
+  onModelProgress?.(25);
+  const overlayCanvas = await inpaintViaServer(
+    imageCanvas,
+    maskCanvas,
+    onModelProgress
+  );
+  onModelProgress?.(96);
 
   const finalCanvas = compositeWithSoftMask(
     imageCanvas,

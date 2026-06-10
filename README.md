@@ -42,7 +42,7 @@ npm run dev
 
 ## AI 修图（服务端）
 
-AI 推理在 **VPS Python 服务**上运行（`onnxruntime` CPU），浏览器只上传图片+蒙版。
+AI 推理在 **VPS Python 服务**上运行（`onnxruntime` + `rembg` CPU），浏览器只上传图片；修图另传蒙版。
 
 ```bash
 # VPS 首次部署 Python 服务

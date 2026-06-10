@@ -118,3 +118,39 @@ body {
   box-shadow: 0 6px 28px rgba(16, 185, 129, 0.55);
   transform: translateY(-1px);
 }
+
+.ai-progress-bar {
+  background: linear-gradient(
+    90deg,
+    #8b5cf6 0%,
+    #38bdf8 35%,
+    #34d399 70%,
+    #8b5cf6 100%
+  );
+  background-size: 200% 100%;
+  animation: ai-progress-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes ai-progress-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.ai-spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 3px solid rgba(139, 92, 246, 0.2);
+  border-top-color: #8b5cf6;
+  border-radius: 50%;
+  animation: ai-spin 0.9s linear infinite;
+}
+
+@keyframes ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

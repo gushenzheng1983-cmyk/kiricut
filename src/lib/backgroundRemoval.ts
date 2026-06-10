@@ -1,62 +1,84 @@
-let bgPreloadPromise: Promise<void> | null = null;
-let bgModelReady = false;
+import {
+  AiServiceUnavailableError,
+  checkAiServiceHealth,
+  fetchAiApi,
+  startEstimatedProgress,
+} from "./aiService";
+
+let serverReady = false;
 
 export async function preloadBackgroundModel(
   onProgress?: (percent: number) => void
 ): Promise<void> {
-  if (bgModelReady) {
-    onProgress?.(100);
-    return;
+  onProgress?.(20);
+  const health = await checkAiServiceHealth();
+  if (!health.ok) {
+    throw new AiServiceUnavailableError();
   }
-
-  if (!bgPreloadPromise) {
-    bgPreloadPromise = (async () => {
-      onProgress?.(10);
-      const { preload } = await import("@imgly/background-removal");
-      onProgress?.(30);
-      await preload();
-      bgModelReady = true;
-      onProgress?.(100);
-    })();
-  }
-
-  await bgPreloadPromise;
+  onProgress?.(100);
+  serverReady = true;
 }
 
 export function isBackgroundModelReady(): boolean {
-  return bgModelReady;
+  return serverReady;
+}
+
+async function imageSourceToBlob(
+  imageSource: string | Blob | HTMLImageElement
+): Promise<Blob> {
+  if (imageSource instanceof Blob) return imageSource;
+  if (typeof imageSource === "string") {
+    return fetch(imageSource).then((res) => res.blob());
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = imageSource.naturalWidth;
+  canvas.height = imageSource.naturalHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas context を取得できません");
+  ctx.drawImage(imageSource, 0, 0);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((b) => {
+      if (b) resolve(b);
+      else reject(new Error("画像の変換に失敗しました"));
+    }, "image/png");
+  });
 }
 
 export async function removeImageBackground(
-  imageSource: string | Blob | HTMLImageElement
+  imageSource: string | Blob | HTMLImageElement,
+  onProgress?: (percent: number) => void
 ): Promise<string> {
-  await preloadBackgroundModel();
-  const { removeBackground } = await import("@imgly/background-removal");
+  await preloadBackgroundModel(onProgress);
+  const blob = await imageSourceToBlob(imageSource);
 
-  let input: string | Blob = imageSource as string | Blob;
+  const formData = new FormData();
+  formData.append("image", blob, "image.png");
 
-  if (imageSource instanceof HTMLImageElement) {
-    const canvas = document.createElement("canvas");
-    canvas.width = imageSource.naturalWidth;
-    canvas.height = imageSource.naturalHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas context を取得できません");
-    ctx.drawImage(imageSource, 0, 0);
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((b) => {
-        if (b) resolve(b);
-        else reject(new Error("画像の変換に失敗しました"));
-      }, "image/png");
+  onProgress?.(15);
+  const stopProgress = startEstimatedProgress(onProgress, 18, 92, 18000);
+
+  try {
+    const response = await fetchAiApi("/api/remove-background", {
+      method: "POST",
+      body: formData,
     });
-    input = blob;
+
+    if (!response.ok) {
+      let message = "服务端抠图失败";
+      try {
+        const err = (await response.json()) as { error?: string };
+        if (err.error) message = err.error;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(message);
+    }
+
+    onProgress?.(98);
+    const resultBlob = await response.blob();
+    onProgress?.(100);
+    return URL.createObjectURL(resultBlob);
+  } finally {
+    stopProgress();
   }
-
-  const resultBlob = await removeBackground(input, {
-    output: {
-      format: "image/png",
-      quality: 1,
-    },
-  });
-
-  return URL.createObjectURL(resultBlob);
 }

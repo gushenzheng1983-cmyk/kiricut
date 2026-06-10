@@ -19,10 +19,12 @@ export async function GET() {
     const data = (await response.json()) as {
       ok?: boolean;
       model_loaded?: boolean;
+      bg_model_loaded?: boolean;
     };
     return NextResponse.json({
       ok: data.ok ?? true,
       model_loaded: data.model_loaded ?? false,
+      bg_model_loaded: data.bg_model_loaded ?? false,
     });
   } catch (error) {
     return NextResponse.json(

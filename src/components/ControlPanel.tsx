@@ -87,6 +87,7 @@ interface ControlPanelProps {
   isBatchMode: boolean;
   hasProcessedResult: boolean;
   hasRemovedBackground: boolean;
+  aiServiceOk: boolean;
   modelsReady: boolean;
   preloadLabel: string;
   status: ProcessingStatus;
@@ -278,7 +279,7 @@ function ChipBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`rounded-md px-1.5 py-1 text-[10px] font-semibold leading-tight transition-all disabled:opacity-40 ${
+      className={`min-h-[40px] rounded-md px-2 py-2 text-[10px] font-semibold leading-tight transition-all disabled:opacity-40 md:min-h-0 md:px-1.5 md:py-1 ${
         active
           ? "bg-white/14 text-white ring-1 ring-white/20"
           : "border border-white/8 bg-white/[0.03] text-white/55 hover:bg-white/8"
@@ -397,6 +398,7 @@ export default function ControlPanel({
   isBatchMode,
   hasProcessedResult,
   hasRemovedBackground,
+  aiServiceOk,
   modelsReady,
   preloadLabel,
   status,
@@ -457,8 +459,9 @@ export default function ControlPanel({
     isProcessing ||
     !watermarkZone ||
     watermarkZone === "auto" ||
-    (watermarkRemovalMode === "ai" && !modelsReady);
-  const isBackgroundDisabled = !hasImage || isProcessing || !modelsReady;
+    (watermarkRemovalMode === "ai" && (!modelsReady || !aiServiceOk));
+  const isBackgroundDisabled =
+    !hasImage || isProcessing || !modelsReady || !aiServiceOk;
   const isDownloadDisabled = !hasProcessedResult || isProcessing;
   const isBgSettingsDisabled = !hasRemovedBackground || isProcessing;
   const platformExportSpec = selectedPlatformId
@@ -602,21 +605,38 @@ export default function ControlPanel({
           <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-white/80">
             {statusMessage || defaultStatus}
           </p>
-          {(status === "preloading-models" || status === "downloading-model") &&
+          {(status === "preloading-models" ||
+            status === "downloading-model" ||
+            status === "inpainting" ||
+            status === "removing-background") &&
             modelProgress >= 0 && (
-              <div className="mt-3">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="mt-2">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-violet-500 via-sky-400 to-emerald-400 transition-all"
-                    style={{ width: `${modelProgress}%` }}
+                    className="ai-progress-bar h-full rounded-full transition-all duration-300"
+                    style={{ width: `${Math.max(4, modelProgress)}%` }}
                   />
                 </div>
-                <p className="mt-1 text-[10px] text-white/40">
-                  {preloadLabel} {modelProgress}%
+                <p className="mt-1 text-[10px] text-white/50">
+                  {status === "inpainting"
+                    ? t(locale, "aiProcessingProgress", {
+                        percent: modelProgress,
+                      })
+                    : status === "removing-background"
+                      ? t(locale, "aiProcessingProgress", {
+                          percent: modelProgress,
+                        })
+                      : `${preloadLabel} ${modelProgress}%`}
                 </p>
               </div>
             )}
         </div>
+
+        {!aiServiceOk && (
+          <div className="panel-tips-glow rounded-lg px-2.5 py-2 text-[10px] leading-snug text-amber-100">
+            {t(locale, "aiServiceUnavailable")}
+          </div>
+        )}
 
         <details className="panel-tips-glow group rounded-lg" open>
           <summary className="cursor-pointer list-none px-2.5 py-2 text-[10px] font-semibold text-amber-200/90 [&::-webkit-details-marker]:hidden">
@@ -1282,7 +1302,7 @@ export default function ControlPanel({
                     type="button"
                     onClick={onFastPipeline}
                     disabled={isWatermarkDisabled}
-                    className="btn-panel-pipeline w-full rounded-lg px-2 py-2 text-[10px] font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                    className="btn-panel-pipeline w-full rounded-lg px-2 py-3 text-[11px] font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-40 md:py-2 md:text-[10px]"
                   >
                     {isProcessing && status === "inpainting"
                       ? t(
@@ -1307,7 +1327,7 @@ export default function ControlPanel({
                 type="button"
                 onClick={onRemoveWatermark}
                 disabled={isWatermarkDisabled}
-                className="btn-panel-watermark w-full rounded-lg px-2 py-2.5 text-[11px] font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-panel-watermark w-full rounded-lg px-2 py-3.5 text-[12px] font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-40 md:py-2.5 md:text-[11px]"
               >
                 {isProcessing && status === "inpainting"
                   ? t(
@@ -1355,7 +1375,7 @@ export default function ControlPanel({
                 type="button"
                 onClick={onRemoveBackground}
                 disabled={isBackgroundDisabled}
-                className="btn-panel-bg mb-2 w-full rounded-lg px-2 py-2 text-[10px] font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-panel-bg mb-2 w-full rounded-lg px-2 py-3.5 text-[12px] font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-40 md:py-2 md:text-[10px]"
               >
                 {isProcessing && status === "removing-background"
                   ? t(locale, "processingBg")
