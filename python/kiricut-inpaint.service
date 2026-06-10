@@ -5,11 +5,13 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/kiricut/python
-Environment=LAMA_MODEL_PATH=/opt/kiricut/public/models/big-lama.onnx
+WorkingDirectory=/home/kiricut/python
+Environment=LAMA_MODEL_PATH=/home/kiricut/public/models/big-lama.onnx
 Environment=INPAINT_HOST=127.0.0.1
 Environment=INPAINT_PORT=8765
-ExecStart=/opt/kiricut/python/.venv/bin/uvicorn inpaint_server:app --host 127.0.0.1 --port 8765
+Environment=AI_MAX_CONCURRENT=2
+Environment=AI_WARMUP_BG=1
+ExecStart=/home/kiricut/python/.venv/bin/uvicorn inpaint_server:app --host 127.0.0.1 --port 8765
 Restart=always
 RestartSec=5
 

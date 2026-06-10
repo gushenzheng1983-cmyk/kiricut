@@ -32,8 +32,9 @@ _session_lock = threading.Lock()
 
 _bg_session = None
 _bg_session_lock = threading.Lock()
-# 1核2G VPS：同时只跑一个 AI 任务，避免内存爆掉整机卡死
-_inference_lock = threading.Lock()
+# 并发上限：2核4G 默认 2；可通过 AI_MAX_CONCURRENT 环境变量调整
+_MAX_CONCURRENT = max(1, int(os.environ.get("AI_MAX_CONCURRENT", "2")))
+_inference_semaphore = threading.Semaphore(_MAX_CONCURRENT)
 
 
 def _resolve_model_path() -> Path:
@@ -192,12 +193,18 @@ app = FastAPI(title="KiriCut AI API", version="1.1.0")
 
 @app.on_event("startup")
 def warmup():
-    # 仅预热 LaMa；抠图模型首次使用时再加载，避免 2G 内存同时扛两个大模型
     try:
         _get_session()
         print("LaMa model warmed up.")
     except Exception as exc:
         print(f"LaMa warmup failed (will retry on first request): {exc}")
+    # 4G 内存可预热抠图模型，首次抠图不用等下载/加载
+    if os.environ.get("AI_WARMUP_BG", "1") == "1":
+        try:
+            _get_bg_session()
+            print("Background removal model warmed up.")
+        except Exception as exc:
+            print(f"BG warmup failed (will retry on first request): {exc}")
 
 
 @app.get("/health")
@@ -219,7 +226,7 @@ async def inpaint(
         mask_bytes = await mask.read()
         if not image_bytes or not mask_bytes:
             raise HTTPException(status_code=400, detail="image 和 mask 不能为空")
-        with _inference_lock:
+        with _inference_semaphore:
             result = inpaint_image(image_bytes, mask_bytes)
         return Response(content=result, media_type="image/png")
     except HTTPException:
@@ -237,7 +244,7 @@ async def remove_background(image: UploadFile = File(...)):
         image_bytes = await image.read()
         if not image_bytes:
             raise HTTPException(status_code=400, detail="image 不能为空")
-        with _inference_lock:
+        with _inference_semaphore:
             result = remove_background_image(image_bytes)
         return Response(content=result, media_type="image/png")
     except HTTPException:

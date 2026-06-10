@@ -44,6 +44,8 @@ npm run dev
 
 AI 推理在 **VPS Python 服务**上运行（`onnxruntime` + `rembg` CPU），浏览器只上传图片；修图另传蒙版。
 
+**推荐 VPS：2 核 4G**（试用稳定）；可设 `AI_MAX_CONCURRENT=2` 允许最多 2 个 AI 任务并行。
+
 ```bash
 # VPS 首次部署 Python 服务
 cd /opt/kiricut
