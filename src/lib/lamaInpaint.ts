@@ -9,7 +9,7 @@ import {
 import { getCachedModel, LAMA_CACHE_KEY, setCachedModel } from "./modelCache";
 
 export const LAMA_MODEL_URL =
-  "https://huggingface.co/lxfater/inpaint-web/resolve/main/models/big-lama.onnx";
+  "https://hf-mirror.com/lxfater/inpaint-web/resolve/main/models/big-lama.onnx";
 
 export const LAMA_MODEL_LOCAL = "/models/big-lama.onnx";
 
@@ -135,7 +135,6 @@ async function loadLamaModelBuffer(
   const sources = [
     LAMA_MODEL_LOCAL,
     LAMA_MODEL_URL,
-    "https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx",
     "https://hf-mirror.com/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx",
   ];
   let lastError: Error | null = null;

@@ -6,8 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 
 const LAMA_URLS = [
-  "https://huggingface.co/lxfater/inpaint-web/resolve/main/models/big-lama.onnx",
-  "https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx",
+  "https://hf-mirror.com/lxfater/inpaint-web/resolve/main/models/big-lama.onnx",
   "https://hf-mirror.com/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx",
 ];
 

@@ -12,8 +12,8 @@ const MODEL_PATHS = [
 ];
 
 const MODEL_URLS = [
-  "https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx",
-  "https://huggingface.co/lxfater/inpaint-web/resolve/main/models/big-lama.onnx",
+  "https://hf-mirror.com/lxfater/inpaint-web/resolve/main/models/big-lama.onnx",
+  "https://hf-mirror.com/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx",
 ];
 
 let session: ort.InferenceSession | null = null;
