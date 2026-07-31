@@ -8,7 +8,8 @@ KiriCut 统一部署脚本（唯一入口）
   python scripts/deploy-vps.py --sync-tar   # 无 git 时用 tar 全量同步源码
 
 环境变量:
-  KIRICUT_VPS_HOST  默认 149.30.239.121
+  KIRICUT_VPS_HOST  默认 206.119.182.153
+  KIRICUT_VPS_PORT  默认 55716
   KIRICUT_VPS_USER  默认 root
   KIRICUT_VPS_PASSWORD  必填
   KIRICUT_GIT_BRANCH  默认 master
@@ -26,7 +27,8 @@ from pathlib import Path
 
 import paramiko
 
-HOST = os.environ.get("KIRICUT_VPS_HOST", "149.30.239.121")
+HOST = os.environ.get("KIRICUT_VPS_HOST", "206.119.182.153")
+PORT = int(os.environ.get("KIRICUT_VPS_PORT", "55716"))
 USER = os.environ.get("KIRICUT_VPS_USER", "root")
 PASSWORD = os.environ.get("KIRICUT_VPS_PASSWORD", "")
 BRANCH = os.environ.get("KIRICUT_GIT_BRANCH", "master")
@@ -148,7 +150,7 @@ def make_source_tarball() -> bytes:
 def ssh_connect() -> paramiko.SSHClient:
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(HOST, username=USER, password=PASSWORD, timeout=30)
+    client.connect(HOST, port=PORT, username=USER, password=PASSWORD, timeout=30)
     return client
 
 

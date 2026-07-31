@@ -7,7 +7,8 @@ import sys
 
 import paramiko
 
-HOST = os.environ.get("KIRICUT_VPS_HOST", "149.30.239.121")
+HOST = os.environ.get("KIRICUT_VPS_HOST", "206.119.182.153")
+PORT = int(os.environ.get("KIRICUT_VPS_PORT", "55716"))
 USER = os.environ.get("KIRICUT_VPS_USER", "root")
 PASSWORD = os.environ.get("KIRICUT_VPS_PASSWORD", "")
 
@@ -49,7 +50,7 @@ def run(mode: str) -> int:
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(HOST, username=USER, password=PASSWORD, timeout=30)
+    client.connect(HOST, port=PORT, username=USER, password=PASSWORD, timeout=30)
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     for cmd in cmds:
         print(f"\n=== {cmd} ===")

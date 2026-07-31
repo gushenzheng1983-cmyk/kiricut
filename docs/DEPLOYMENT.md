@@ -1,7 +1,7 @@
 # KiriCut 部署与运维手册
 
 > 版本：v0.1.0 · 仓库：https://github.com/gushenzheng1983-cmyk/kiricut  
-> VPS：149.30.239.121 · 路径：`/home/kiricut` · 规格：2核 4G
+> VPS：206.119.182.153:55716（SSH）· 路径：`/home/kiricut` · 规格：2核 4G
 
 ---
 
@@ -86,7 +86,7 @@ npm run deploy:vps
 npm run vps:health
 ```
 
-浏览器打开 http://149.30.239.121 ，确认右下角版本号与本地 `git rev-parse --short HEAD` 一致。
+浏览器打开 http://206.119.182.153 ，确认右下角版本号与本地 `git rev-parse --short HEAD` 一致。
 
 ---
 
@@ -104,7 +104,8 @@ npm run vps:health
 
 | 变量 | 默认 |
 |------|------|
-| `KIRICUT_VPS_HOST` | `149.30.239.121` |
+| `KIRICUT_VPS_HOST` | `206.119.182.153` |
+| `KIRICUT_VPS_PORT` | `55716` |
 | `KIRICUT_VPS_USER` | `root` |
 | `KIRICUT_VPS_PASSWORD` | 必填 |
 | `KIRICUT_GIT_BRANCH` | `master` |
