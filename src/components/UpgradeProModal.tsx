@@ -132,15 +132,10 @@ export default function UpgradeProModal({
           </div>
         </div>
 
-        <div className="mb-3 rounded-xl border border-white/10 bg-black/30 p-3">
-          <p className="mb-2 text-[11px] font-semibold text-white/70">
-            {t(locale, "proPayStepsTitle")}
+        <div className="mb-3 rounded-xl border border-amber-400/30 bg-black/30 p-3">
+          <p className="mb-2 text-center text-[12px] font-bold text-amber-100">
+            {t(locale, "proAlipayOnly")}
           </p>
-          <ol className="mb-3 list-decimal space-y-1 pl-4 text-[10px] leading-relaxed text-white/55">
-            <li>{t(locale, "proPayStep1")}</li>
-            <li>{t(locale, "proPayStep2")}</li>
-            <li>{t(locale, "proPayStep3")}</li>
-          </ol>
 
           {PRICING.enableAlipay && alipayOk && (
             <div className="mb-3 text-center">
@@ -148,13 +143,12 @@ export default function UpgradeProModal({
               <img
                 src={PRICING.alipayQrPath}
                 alt="Alipay"
-                className="mx-auto h-40 w-40 rounded-xl border border-white/10 bg-white object-contain p-1"
+                width={220}
+                height={220}
+                className="mx-auto h-52 w-52 rounded-xl border-2 border-sky-300/40 bg-white object-contain p-2"
                 onError={() => setAlipayOk(false)}
               />
-              <p className="mt-2 text-[11px] font-semibold text-sky-200">
-                {t(locale, "proAlipayOnly")}
-              </p>
-              <p className="mt-1 text-[9px] text-white/45">
+              <p className="mt-2 text-[10px] text-white/55">
                 {t(locale, "proAlipayOnlyHint")}
               </p>
             </div>
@@ -164,6 +158,15 @@ export default function UpgradeProModal({
               {t(locale, "proAlipayMissing")}
             </p>
           )}
+
+          <p className="mb-1.5 text-[11px] font-semibold text-white/70">
+            {t(locale, "proPayStepsTitle")}
+          </p>
+          <ol className="mb-3 list-decimal space-y-1 pl-4 text-[10px] leading-relaxed text-white/55">
+            <li>{t(locale, "proPayStep1")}</li>
+            <li>{t(locale, "proPayStep2")}</li>
+            <li>{t(locale, "proPayStep3")}</li>
+          </ol>
 
           <div className="rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-center text-[11px] text-cyan-100">
             {supportWechat

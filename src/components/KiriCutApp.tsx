@@ -276,7 +276,7 @@ export default function KiriCutApp() {
     }).catch(() => undefined);
   }, []);
 
-  /** 免费用户首次打开：自动弹出收款码，避免侧栏被忽略 */
+  /** 免费用户打开页面：自动弹出大号收款码（同会话只弹一次；侧栏也常驻 QR） */
   useEffect(() => {
     if (!prefsLoaded) return;
     if (getLicenseSummary().isPro) return;
@@ -284,9 +284,10 @@ export default function KiriCutApp() {
       if (sessionStorage.getItem("kiricut-pay-prompt-shown") === "1") return;
       sessionStorage.setItem("kiricut-pay-prompt-shown", "1");
     } catch {
-      /* ignore */
+      /* private mode 等：仍弹出 */
     }
-    setShowUpgradeModal(true);
+    const timer = window.setTimeout(() => setShowUpgradeModal(true), 400);
+    return () => window.clearTimeout(timer);
   }, [prefsLoaded]);
 
   useEffect(() => {

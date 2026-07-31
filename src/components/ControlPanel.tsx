@@ -613,11 +613,7 @@ export default function ControlPanel({
           </button>
         </div>
         {!isPro && (
-          <button
-            type="button"
-            onClick={onOpenUpgrade}
-            className="mt-2 w-full rounded-xl border border-amber-400/50 bg-gradient-to-r from-amber-500/25 to-orange-500/20 px-3 py-2.5 text-left shadow-lg shadow-amber-500/10"
-          >
+          <div className="mt-2 w-full rounded-xl border border-amber-400/50 bg-gradient-to-r from-amber-500/25 to-orange-500/20 px-3 py-2.5 shadow-lg shadow-amber-500/10">
             <p className="text-[12px] font-extrabold text-amber-100">
               {t(locale, "proPayBannerTitle")}
             </p>
@@ -627,10 +623,36 @@ export default function ControlPanel({
                 yearly: PRICING.yearlyPriceCny,
               })}
             </p>
-            <p className="mt-1.5 inline-flex rounded-md bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-black">
+            {PRICING.enableAlipay && (
+              <button
+                type="button"
+                onClick={onOpenUpgrade}
+                className="mt-2 w-full text-center"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={PRICING.alipayQrPath}
+                  alt="Alipay"
+                  width={168}
+                  height={168}
+                  className="mx-auto h-40 w-40 rounded-xl border border-white/20 bg-white object-contain p-1.5"
+                />
+                <p className="mt-1.5 text-[11px] font-bold text-sky-200">
+                  {t(locale, "proAlipayOnly")}
+                </p>
+                <p className="mt-0.5 text-[9px] text-amber-100/65">
+                  {t(locale, "proAlipayOnlyHint")}
+                </p>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onOpenUpgrade}
+              className="mt-2 w-full rounded-md bg-amber-400 px-2 py-1 text-[10px] font-bold text-black"
+            >
               {t(locale, "proPayBannerCta")} →
-            </p>
-          </button>
+            </button>
+          </div>
         )}
       </header>
 
