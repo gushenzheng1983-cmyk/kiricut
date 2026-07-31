@@ -590,8 +590,12 @@ export default function ControlPanel({
             <>
               <button
                 type="button"
-                onClick={onOpenUpgrade}
-                className="rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1.5 text-[10px] font-bold text-black shadow-md shadow-amber-500/25"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onOpenUpgrade();
+                }}
+                className="rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1.5 text-[10px] font-bold text-black shadow-md shadow-amber-500/25 ring-2 ring-amber-300/40"
               >
                 {t(locale, "proUpgradeBtn")}
               </button>
@@ -645,10 +649,14 @@ export default function ControlPanel({
             </p>
             <button
               type="button"
-              onClick={onOpenUpgrade}
-              className="mt-2 w-full rounded-md bg-amber-400 px-2 py-1.5 text-[11px] font-bold text-black"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onOpenUpgrade();
+              }}
+              className="mt-2 w-full rounded-lg bg-amber-400 px-3 py-2.5 text-[12px] font-extrabold text-black shadow-lg shadow-amber-500/30 ring-2 ring-amber-200/50"
             >
-              {t(locale, "proOpenPayQr")} →
+              {t(locale, "proOpenPayQr")}
             </button>
           </div>
         )}
@@ -1753,10 +1761,14 @@ export default function ControlPanel({
         {!isPro && (
           <button
             type="button"
-            onClick={onOpenUpgrade}
-            className="mt-1.5 w-full rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-1.5 text-[10px] font-bold text-black"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onOpenUpgrade();
+            }}
+            className="mt-1.5 w-full rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-2.5 text-[12px] font-extrabold text-black shadow-lg shadow-amber-500/30 ring-2 ring-amber-300/40"
           >
-            {t(locale, "proOpenPayQr")} · {t(locale, "proAlipayOnly")}
+            {t(locale, "proOpenPayQr")}
           </button>
         )}
         <button
