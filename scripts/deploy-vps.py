@@ -65,6 +65,11 @@ ln -sf /etc/nginx/sites-available/kiricut /etc/nginx/sites-enabled/kiricut
 rm -f /etc/nginx/sites-enabled/default
 grep -q 'client_max_body_size' /etc/nginx/nginx.conf || \
   sed -i '/http {/a \    client_max_body_size 20m;' /etc/nginx/nginx.conf
+# Re-attach Let's Encrypt if cert already issued (template is HTTP-only)
+if [ -f /etc/letsencrypt/live/kiricut.net/fullchain.pem ]; then
+  certbot install --nginx -d kiricut.net -d www.kiricut.net --non-interactive --redirect \
+    || certbot --nginx -d kiricut.net -d www.kiricut.net --non-interactive --reinstall --redirect || true
+fi
 nginx -t
 systemctl reload nginx
 

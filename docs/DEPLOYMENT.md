@@ -1,17 +1,81 @@
 # KiriCut 部署与运维手册
 
 > 版本：v0.1.0 · 仓库：https://github.com/gushenzheng1983-cmyk/kiricut  
+> 正式域名：**https://kiricut.net**（www 同指）  
 > VPS：206.119.182.153:55716（SSH）· 路径：`/home/kiricut` · 规格：2核 4G
+
+---
+
+## 0. 域名与 DNS（阿里云）
+
+| 项 | 值 |
+|----|-----|
+| 正确访问地址 | **http://kiricut.net**（开通 SSL 后用 **https://kiricut.net**） |
+| 备用 | http://www.kiricut.net 、http://206.119.182.153 |
+| A 记录必须指向 | **206.119.182.153** |
+
+### 阿里云 DNS 应设置
+
+在 [阿里云 DNS / 云解析](https://dns.console.aliyun.com/) → `kiricut.net`：
+
+| 主机记录 | 类型 | 记录值 |
+|----------|------|--------|
+| `@` | A | `206.119.182.153` |
+| `www` | A | `206.119.182.153` |
+
+不要指向旧 IP（如 `149.x`）、不要指向未配置回源的 CDN，否则会出现「连接被拒绝」或打开旧站。
+
+本地自检：
+
+```powershell
+nslookup kiricut.net
+# 应看到 Address: 206.119.182.153
+curl.exe -I http://kiricut.net
+# 期望 HTTP/1.1 200
+curl.exe -I https://kiricut.net
+# 开通 SSL 前会 Connection refused（443 未监听）；开通后应为 200
+```
+
+### HTTPS（443）两种做法
+
+**推荐 A：Let's Encrypt（certbot，免费）**
+
+前提：DNS A 已指向本 VPS，且 80 可从公网访问。
+
+```bash
+# SSH 到 VPS 后
+apt-get update && apt-get install -y certbot python3-certbot-nginx
+certbot --nginx -d kiricut.net -d www.kiricut.net --non-interactive --agree-tos -m YOUR@EMAIL --redirect
+# 开放防火墙（若启用 ufw）
+ufw allow 80/tcp
+ufw allow 443/tcp
+nginx -t && systemctl reload nginx
+```
+
+续期：`certbot renew`（systemd timer 通常已自动）。
+
+部署脚本会先写入 HTTP 模板，若已存在 `/etc/letsencrypt/live/kiricut.net/` 证书，会自动 `certbot install` 重新挂上 443，避免下次 `deploy:vps` 把 HTTPS 冲掉。
+
+**备选 B：阿里云免费/付费 SSL 证书**
+
+1. 阿里云 SSL 控制台申请证书 → 下载 Nginx 格式  
+2. 上传到 VPS，例如 `/etc/nginx/ssl/kiricut.net.pem` 与 `.key`  
+3. 在 nginx 增加 `listen 443 ssl;` + `ssl_certificate` / `ssl_certificate_key`  
+4. 可选：HTTP 301 跳转到 HTTPS  
+
+未开通 443 时，浏览器默认打开 `https://kiricut.net` 会 **Connection refused**——请先用 **http://** 或完成上述 SSL。
 
 ---
 
 ## 1. 架构总览
 
 ```
-浏览器（用户）
-    │  上传图片、画红框、预览、下载
+浏览器（用户）  →  https://kiricut.net 或 http://kiricut.net
+    │
     ▼
-nginx :80（上传 20MB，超时 300s）
+nginx :80（及 :443，若已装证书）
+    server_name kiricut.net www.kiricut.net;
+    上传 20MB，超时 300s
     ▼
 Next.js :3000（页面 + API 代理）
     │  /api/inpaint
@@ -86,7 +150,7 @@ npm run deploy:vps
 npm run vps:health
 ```
 
-浏览器打开 http://206.119.182.153 ，确认右下角版本号与本地 `git rev-parse --short HEAD` 一致。
+浏览器打开 **http://kiricut.net**（或 http://206.119.182.153），确认右下角版本号与本地 `git rev-parse --short HEAD` 一致。
 
 ---
 
@@ -157,7 +221,8 @@ tail -f /var/log/kiricut-build.log
 
 | 文件 | VPS 路径 |
 |------|----------|
-| nginx | `/etc/nginx/sites-available/kiricut` |
+| nginx | `/etc/nginx/sites-available/kiricut`（模板：`scripts/nginx-kiricut.conf`，`server_name kiricut.net www.kiricut.net`） |
+| Let's Encrypt | `/etc/letsencrypt/live/kiricut.net/`（certbot 安装后） |
 | Python 服务 | `/etc/systemd/system/kiricut-inpaint.service` |
 | Next 服务 | `/etc/systemd/system/kiricut-next.service` |
 | 源码仓库 | `/home/kiricut` |
@@ -208,6 +273,13 @@ scripts/
 ---
 
 ## 9. 常见问题
+
+### 浏览器打不开 / Connection refused（常见：HTTPS）
+
+- 症状：地址栏是 `https://kiricut.net`，提示无法连接 / 连接被拒绝  
+- 原因：VPS 只监听 **80**，尚未装 SSL（443 未开）  
+- 处理：先访问 **http://kiricut.net**；或按上文「HTTPS」用 certbot / 阿里云证书开通 443  
+- 若 HTTP 也不通：查阿里云 DNS A 是否为 `206.119.182.153`（见第 0 节）
 
 ### 504 / 网页打不开
 
@@ -284,4 +356,4 @@ INPAINT_SERVICE_URL=http://127.0.0.1:8765
 
 ---
 
-*最后更新：2026-06-10*
+*最后更新：2026-07-31*
