@@ -639,34 +639,16 @@ export default function ControlPanel({
                 yearly: PRICING.yearlyPriceCny,
               })}
             </p>
-            {PRICING.enableAlipay && (
-              <button
-                type="button"
-                onClick={onOpenUpgrade}
-                className="mt-2 w-full text-center"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={PRICING.alipayQrPath}
-                  alt="Alipay"
-                  width={180}
-                  height={180}
-                  className="mx-auto h-44 w-44 rounded-xl border-2 border-sky-300/50 bg-white object-contain p-1.5"
-                />
-                <p className="mt-1.5 text-[11px] font-bold text-sky-200">
-                  {t(locale, "proAlipayOnly")}
-                </p>
-                <p className="mt-0.5 text-[9px] text-amber-100/65">
-                  {t(locale, "proAlipayOnlyHint")}
-                </p>
-              </button>
-            )}
+            <p className="mt-1 text-[9px] text-sky-200/80">
+              {t(locale, "proAlipayOnly")} · ¥{PRICING.monthlyPriceCny}/月 · ¥
+              {PRICING.yearlyPriceCny}/年
+            </p>
             <button
               type="button"
               onClick={onOpenUpgrade}
-              className="mt-2 w-full rounded-md bg-amber-400 px-2 py-1 text-[10px] font-bold text-black"
+              className="mt-2 w-full rounded-md bg-amber-400 px-2 py-1.5 text-[11px] font-bold text-black"
             >
-              {t(locale, "proPayBannerCta")} →
+              {t(locale, "proOpenPayQr")} →
             </button>
           </div>
         )}
@@ -1774,7 +1756,7 @@ export default function ControlPanel({
             onClick={onOpenUpgrade}
             className="mt-1.5 w-full rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-1.5 text-[10px] font-bold text-black"
           >
-            {t(locale, "proPayBannerCta")} · {t(locale, "proAlipayOnly")}
+            {t(locale, "proOpenPayQr")} · {t(locale, "proAlipayOnly")}
           </button>
         )}
         <button

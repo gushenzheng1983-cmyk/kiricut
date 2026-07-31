@@ -296,27 +296,6 @@ export default function KiriCutApp() {
     }).catch(() => undefined);
   }, []);
 
-  /**
-   * 免费用户：侧栏常驻 Alipay QR。
-   * - 免费体验已用完 → 每次进入都强弹付费墙
-   * - 尚有免费体验 → 同会话只软提示一次
-   */
-  useEffect(() => {
-    if (!prefsLoaded) return;
-    if (getLicenseSummary().isPro) return;
-    const locked = hasUsedFreeExport();
-    if (!locked) {
-      try {
-        if (sessionStorage.getItem("kiricut-pay-prompt-shown") === "1") return;
-        sessionStorage.setItem("kiricut-pay-prompt-shown", "1");
-      } catch {
-        /* private mode 等：仍弹出 */
-      }
-    }
-    const timer = window.setTimeout(() => setShowUpgradeModal(true), 400);
-    return () => window.clearTimeout(timer);
-  }, [prefsLoaded, quotaTick]);
-
   useEffect(() => {
     const prefs = loadPreferences();
     setLocale(prefs.locale);
