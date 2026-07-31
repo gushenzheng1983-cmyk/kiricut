@@ -185,7 +185,12 @@ git rev-parse --short HEAD
 
 
 def deploy_git(client: paramiko.SSHClient) -> None:
-    print(f"[1/3] git pull on VPS (branch {BRANCH})...")
+    """Align VPS to origin/BRANCH. Discard dirty tracked files (e.g. generated buildInfo.ts).
+
+    VPS must match GitHub for deploy. Uses reset --hard + selective clean
+    (same as bootstrap), preserving python/.venv, node_modules, public/models.
+    """
+    print(f"[1/3] sync VPS git to origin/{BRANCH} (hard reset)...")
     cmd = f"""
 set -e
 cd {REMOTE_ROOT}
@@ -193,12 +198,16 @@ if [ ! -d .git ]; then
   echo "NO_GIT_REPO"
   exit 2
 fi
+git remote set-url origin {GIT_REMOTE} 2>/dev/null || git remote add origin {GIT_REMOTE}
 git fetch origin
-git checkout {BRANCH}
-git pull --ff-only origin {BRANCH}
+git checkout {BRANCH} 2>/dev/null || git checkout -B {BRANCH} origin/{BRANCH}
+# Discard dirty generated/local tracked files (e.g. src/lib/buildInfo.ts) so sync never blocks.
+git reset --hard origin/{BRANCH}
+# Do not use -x: keep python/.venv and node_modules
+git clean -fd -e node_modules -e python/.venv -e public/models
 git rev-parse --short HEAD
 """
-    out = run_remote(client, cmd, timeout=120)
+    out = run_remote(client, cmd, timeout=180)
     if "NO_GIT_REPO" in out:
         bootstrap_git(client)
 
