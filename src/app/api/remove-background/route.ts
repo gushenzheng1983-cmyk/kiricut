@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUsageEvent } from "@/lib/usageStats";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
       } catch {
         detail = (await response.text()) || detail;
       }
+      void recordUsageEvent("bg_fail");
       return NextResponse.json(
         { error: detail },
         { status: response.status >= 500 ? 503 : response.status }
@@ -44,18 +46,21 @@ export async function POST(request: NextRequest) {
 
     const buffer = await response.arrayBuffer();
     if (buffer.byteLength < 1024) {
+      void recordUsageEvent("bg_fail");
       return NextResponse.json(
         { error: `抠图结果过小（${buffer.byteLength} bytes）` },
         { status: 502 }
       );
     }
 
+    void recordUsageEvent("bg_ok");
     return NextResponse.json({
       image: pngBufferToDataUrl(buffer),
       bytes: buffer.byteLength,
     });
   } catch (error) {
     console.error("remove-background proxy error:", error);
+    void recordUsageEvent("bg_fail");
     return NextResponse.json(
       {
         error:

@@ -15,6 +15,7 @@
     "deploy:vps:tar": "python scripts/deploy-vps.py --sync-tar",
     "vps:health": "python scripts/vps-ops.py health",
     "vps:diagnose": "python scripts/vps-ops.py diagnose",
+    "vps:usage": "python scripts/vps-usage-report.py",
     "license:gen": "node scripts/generate-license.mjs"
   },
   "dependencies": {

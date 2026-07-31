@@ -269,6 +269,27 @@ export default function KiriCutApp() {
   );
 
   useEffect(() => {
+    void fetch("/api/usage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: "page_ping" }),
+    }).catch(() => undefined);
+  }, []);
+
+  /** 免费用户首次打开：自动弹出收款码，避免侧栏被忽略 */
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    if (getLicenseSummary().isPro) return;
+    try {
+      if (sessionStorage.getItem("kiricut-pay-prompt-shown") === "1") return;
+      sessionStorage.setItem("kiricut-pay-prompt-shown", "1");
+    } catch {
+      /* ignore */
+    }
+    setShowUpgradeModal(true);
+  }, [prefsLoaded]);
+
+  useEffect(() => {
     const prefs = loadPreferences();
     setLocale(prefs.locale);
     if (prefs.lastPlatformId) {

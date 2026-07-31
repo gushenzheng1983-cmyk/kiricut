@@ -20,6 +20,7 @@ import {
 } from "@/lib/platformExport";
 import { APP_VERSION, BUILD_SHA } from "@/lib/buildInfo";
 import { BETA_SURVEY_URL, hasBetaSurveyLink } from "@/lib/betaFeedback";
+import { PRICING } from "@/lib/pricing";
 import { downloadSettingsBundle } from "@/lib/settingsSync";
 import {
   buildShopWatermarkText,
@@ -611,6 +612,26 @@ export default function ControlPanel({
             {t(locale, "supportBtn")}
           </button>
         </div>
+        {!isPro && (
+          <button
+            type="button"
+            onClick={onOpenUpgrade}
+            className="mt-2 w-full rounded-xl border border-amber-400/50 bg-gradient-to-r from-amber-500/25 to-orange-500/20 px-3 py-2.5 text-left shadow-lg shadow-amber-500/10"
+          >
+            <p className="text-[12px] font-extrabold text-amber-100">
+              {t(locale, "proPayBannerTitle")}
+            </p>
+            <p className="mt-0.5 text-[9px] leading-relaxed text-amber-100/75">
+              {t(locale, "proPayBannerHint", {
+                monthly: PRICING.monthlyPriceCny,
+                yearly: PRICING.yearlyPriceCny,
+              })}
+            </p>
+            <p className="mt-1.5 inline-flex rounded-md bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-black">
+              {t(locale, "proPayBannerCta")} →
+            </p>
+          </button>
+        )}
       </header>
 
       <div className="panel-progress-track shrink-0 border-b border-white/8 px-3 py-2">
@@ -1709,6 +1730,15 @@ export default function ControlPanel({
               : t(locale, "footerDownload")
             : t(locale, "footerDownloadNeed")}
         </button>
+        {!isPro && (
+          <button
+            type="button"
+            onClick={onOpenUpgrade}
+            className="mt-1.5 w-full rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-1.5 text-[10px] font-bold text-black"
+          >
+            {t(locale, "proPayBannerCta")} · {t(locale, "proAlipayOnly")}
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpenSupport}

@@ -18,14 +18,16 @@ export const PRICING = {
   supportHours: "工作日 10:00–22:00（微信消息通常 2 小时内回复）",
   /** 客服说明（显示在联系客服弹窗） */
   supportNote:
-    "付款后请发「付款截图 + 套餐（月卡/年卡）」给客服领取激活码。功能问题、退款咨询请同样联系客服，勿在评论区争吵。",
+    "请用支付宝付款，付款后发「付款截图 + 套餐（月卡/年卡）」给客服微信领取激活码。功能问题、退款咨询请同样联系客服。",
 
   /**
    * 客服「加好友」二维码（微信 → 我 → 二维码名片 → 保存）
    * 与收款码不同：这是加人用的，不是付款码。
    */
   supportQrPath: "/pay/support-wechat.png",
-  /** 收款码（付款用） */
+  /** 仅支付宝收款（暂不开放微信收款） */
+  enableWechatPay: false,
+  enableAlipay: true,
   wechatQrPath: "/pay/wechat.png",
   alipayQrPath: "/pay/alipay.png",
 } as const;

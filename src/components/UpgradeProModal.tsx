@@ -24,8 +24,7 @@ export default function UpgradeProModal({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [wechatOk, setWechatOk] = useState(true);
-  const [alipayOk, setAlipayOk] = useState(true);
+  const [alipayOk, setAlipayOk] = useState<boolean>(Boolean(PRICING.enableAlipay));
   const summary = getLicenseSummary();
 
   useEffect(() => {
@@ -33,6 +32,7 @@ export default function UpgradeProModal({
     setCode("");
     setMessage(null);
     setError(null);
+    setAlipayOk(Boolean(PRICING.enableAlipay));
   }, [open]);
 
   if (!open) return null;
@@ -57,6 +57,11 @@ export default function UpgradeProModal({
       }
       setMessage(t(locale, "proActivateOk", { date: result.license.expiresAt }));
       onActivated(result.license);
+      void fetch("/api/usage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "activate_ok" }),
+      }).catch(() => undefined);
       setTimeout(() => onClose(), 800);
     } finally {
       setBusy(false);
@@ -137,37 +142,27 @@ export default function UpgradeProModal({
             <li>{t(locale, "proPayStep3")}</li>
           </ol>
 
-          {(wechatOk || alipayOk) && (
-            <div className="mb-3 flex flex-wrap justify-center gap-3">
-              {wechatOk && (
-                <div className="text-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={PRICING.wechatQrPath}
-                    alt="WeChat Pay"
-                    className="mx-auto h-28 w-28 rounded-lg border border-white/10 bg-white object-contain"
-                    onError={() => setWechatOk(false)}
-                  />
-                  <p className="mt-1 text-[9px] text-white/45">
-                    {t(locale, "proWechatPay")}
-                  </p>
-                </div>
-              )}
-              {alipayOk && (
-                <div className="text-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={PRICING.alipayQrPath}
-                    alt="Alipay"
-                    className="mx-auto h-28 w-28 rounded-lg border border-white/10 bg-white object-contain"
-                    onError={() => setAlipayOk(false)}
-                  />
-                  <p className="mt-1 text-[9px] text-white/45">
-                    {t(locale, "proAlipay")}
-                  </p>
-                </div>
-              )}
+          {PRICING.enableAlipay && alipayOk && (
+            <div className="mb-3 text-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={PRICING.alipayQrPath}
+                alt="Alipay"
+                className="mx-auto h-40 w-40 rounded-xl border border-white/10 bg-white object-contain p-1"
+                onError={() => setAlipayOk(false)}
+              />
+              <p className="mt-2 text-[11px] font-semibold text-sky-200">
+                {t(locale, "proAlipayOnly")}
+              </p>
+              <p className="mt-1 text-[9px] text-white/45">
+                {t(locale, "proAlipayOnlyHint")}
+              </p>
             </div>
+          )}
+          {PRICING.enableAlipay && !alipayOk && (
+            <p className="mb-3 text-center text-[10px] text-amber-200">
+              {t(locale, "proAlipayMissing")}
+            </p>
           )}
 
           <div className="rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-center text-[11px] text-cyan-100">
