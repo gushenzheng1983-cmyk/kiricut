@@ -4,10 +4,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BatchConfirmDialog from "./BatchConfirmDialog";
 import ImageViewer from "./ImageViewer";
 import ControlPanel from "./ControlPanel";
+import UpgradeProModal from "./UpgradeProModal";
+import SupportContactModal from "./SupportContactModal";
 import {
   AI_SERVICE_UNAVAILABLE,
   isAiServiceUnavailable,
 } from "@/lib/aiService";
+import { getLicenseSummary } from "@/lib/license";
+import { PRICING } from "@/lib/pricing";
+import {
+  canProcess,
+  getDailyUsed,
+  getMaxBatchSize,
+  recordUsage,
+} from "@/lib/usageQuota";
 import { removeImageBackground } from "@/lib/backgroundRemoval";
 import { preloadAllModels } from "@/lib/preloadModels";
 import {
@@ -83,8 +93,6 @@ import {
   type WatermarkRemovalMode,
 } from "@/types";
 
-const MAX_BATCH = 120;
-
 function formatUserError(error: unknown, locale: Locale): string {
   if (isAiServiceUnavailable(error)) {
     return t(locale, "aiServiceUnavailable");
@@ -125,6 +133,10 @@ export default function KiriCutApp() {
   const [locale, setLocale] = useState<Locale>("zh");
   const [batchItems, setBatchItems] = useState<BatchImageItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [licenseTick, setLicenseTick] = useState(0);
+  const [quotaTick, setQuotaTick] = useState(0);
   const [selectedPlatformId, setSelectedPlatformId] = useState<string | null>(
     null
   );
@@ -173,6 +185,36 @@ export default function KiriCutApp() {
 
   const activeItem = batchItems[activeIndex] ?? null;
   const isBatchMode = batchItems.length > 1;
+  const licenseInfo = useMemo(() => getLicenseSummary(), [licenseTick]);
+  const dailyUsed = useMemo(() => getDailyUsed(), [quotaTick, licenseTick]);
+  const dailyLimit = licenseInfo.isPro ? null : PRICING.freeDailyQuota;
+
+  const ensureCanProcess = useCallback(
+    (requested: number): boolean => {
+      const check = canProcess(requested);
+      if (check.ok) return true;
+      if (check.reason === "daily_quota") {
+        setStatusMessage(
+          t(locale, "proQuotaDailyReached", {
+            used: check.used,
+            limit: check.limit,
+          })
+        );
+      } else {
+        setStatusMessage(
+          t(locale, "proQuotaBatchLimit", {
+            limit: check.limit,
+            requested: check.requested,
+            proLimit: PRICING.proMaxBatch,
+          })
+        );
+      }
+      setShowUpgradeModal(true);
+      return false;
+    },
+    [locale]
+  );
+
   const originalImageDataUrl = activeItem?.originalDataUrl ?? null;
   const processedImageDataUrl = activeItem?.processedDataUrl ?? null;
   const bgRemovedDataUrl = activeItem?.bgRemovedDataUrl ?? null;
@@ -566,10 +608,22 @@ export default function KiriCutApp() {
   };
 
   const handleUpload = async (files: File[]) => {
+    const maxBatch = getMaxBatchSize();
     const imageFiles = files
       .filter((f) => f.type.startsWith("image/"))
-      .slice(0, MAX_BATCH);
+      .slice(0, maxBatch);
     if (imageFiles.length === 0) return;
+
+    if (files.filter((f) => f.type.startsWith("image/")).length > maxBatch) {
+      setStatusMessage(
+        t(locale, "proQuotaBatchLimit", {
+          limit: maxBatch,
+          requested: files.filter((f) => f.type.startsWith("image/")).length,
+          proLimit: PRICING.proMaxBatch,
+        })
+      );
+      if (!licenseInfo.isPro) setShowUpgradeModal(true);
+    }
 
     try {
       const items: BatchImageItem[] = [];
@@ -879,6 +933,7 @@ export default function KiriCutApp() {
       : [batchItems[activeIndex]].filter(Boolean);
 
     if (targets.length === 0) return;
+    if (!ensureCanProcess(targets.length)) return;
 
     try {
       setStatus("inpainting");
@@ -909,6 +964,11 @@ export default function KiriCutApp() {
           );
         }
       );
+
+      if (successes.length > 0) {
+        recordUsage(successes.length);
+        setQuotaTick((n) => n + 1);
+      }
 
       setStatus("idle");
       setBatchProgressCurrent(0);
@@ -947,6 +1007,7 @@ export default function KiriCutApp() {
 
     const targets = isBatchMode ? batchItems : [batchItems[activeIndex]];
     if (targets.length === 0) return;
+    if (!ensureCanProcess(targets.length)) return;
 
     try {
       setExportSizeMode("original");
@@ -972,6 +1033,8 @@ export default function KiriCutApp() {
         return;
       }
 
+      recordUsage(successes.length);
+      setQuotaTick((n) => n + 1);
       setStatusMessage(t(locale, "pipelinePackaging"));
 
       const platformTag = selectedPlatformId ?? "export";
@@ -1036,6 +1099,7 @@ export default function KiriCutApp() {
     if (!activeItem) return;
     const source = processedImageDataUrl ?? originalImageDataUrl;
     if (!source) return;
+    if (!ensureCanProcess(1)) return;
 
     try {
       setStatus("removing-background");
@@ -1051,6 +1115,8 @@ export default function KiriCutApp() {
         URL.revokeObjectURL(prevBg);
       }
       updateBatchItem(activeItem.id, { bgRemovedDataUrl: result });
+      recordUsage(1);
+      setQuotaTick((n) => n + 1);
       setStatus("idle");
       setModelProgress(0);
       setStatusMessage(t(locale, "statusBgDone"));
@@ -1212,6 +1278,24 @@ export default function KiriCutApp() {
           onCancel={() => setPendingBatchAction(null)}
         />
       )}
+      <UpgradeProModal
+        locale={locale}
+        open={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        onOpenSupport={() => {
+          setShowUpgradeModal(false);
+          setShowSupportModal(true);
+        }}
+        onActivated={() => {
+          setLicenseTick((n) => n + 1);
+          setQuotaTick((n) => n + 1);
+        }}
+      />
+      <SupportContactModal
+        locale={locale}
+        open={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+      />
       <section className="relative flex-1 min-h-[48dvh] bg-white md:min-h-0 md:w-[68%]">
         <ImageViewer
           locale={locale}
@@ -1312,6 +1396,12 @@ export default function KiriCutApp() {
           coverBlendMode={coverBlendMode}
           onCoverBlendModeChange={handleCoverBlendModeChange}
           onImportSettings={handleImportSettings}
+          isPro={licenseInfo.isPro}
+          proExpiresAt={licenseInfo.expiresAt}
+          dailyUsed={dailyUsed}
+          dailyLimit={dailyLimit}
+          onOpenUpgrade={() => setShowUpgradeModal(true)}
+          onOpenSupport={() => setShowSupportModal(true)}
         />
       </aside>
     </div>

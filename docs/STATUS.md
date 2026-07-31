@@ -1,72 +1,62 @@
 # 开发进度
 
-> 更新：2026-06-08（今日收工 · 明日封闭测试）
+> 更新：2026-07-31（收费方案一上线：微信/支付宝 + 激活码）
 
 ## 定位
 
 - 用户：跨境卖家，每天上百张白底商品图
-- 必须原图画质；批量最多 120 张
+- 必须原图画质；批量最多 120 张（Pro）
 - **主推**：角落轻微水印 + **AI 修图**
 - **次推**：Mercari 等斜角水印（旋转红框 + AI）
 - **不主推**：画面正中超大斜水印（如 Amazon 整条对角）
 
-## 今日已完成（2026-06-08）
+## 收费（方案一 · 已落地）
 
-### 交互
+| | 免费 | Pro |
+|--|------|-----|
+| 每日处理 | 15 张 | 不限 |
+| 批量 | 最多 5 张/次 | 最多 120 张 |
+| 价格 | ¥0 | 月卡 ¥68 / 年卡 ¥398 |
 
-- **框控制条**：可拖动，**全界面**任意位置（Portal 浮层）；红框移动 + 方向/大小/角度按钮
-- **侧栏**：关键项默认展开（覆盖色、店铺标、去背景步骤）；智能取色独立大面板
-- **智能取色面板**：③ 吸色大按钮 + ④ 批量学习进度；色板当前色 **✓ 高亮**
-- 吸色时左侧原图 **大黄条** 提示
+- **客服必填**：`src/lib/pricing.ts` → `supportWechat`（侧栏常驻「联系客服」，付费/发码/投诉/退款）
+- 收款：微信/支付宝码（图放 `public/pay/wechat.png`、`alipay.png`）+ 客服人工发码
+- 激活码：侧栏「升级 Pro」弹窗粘贴；存 `localStorage` → `kiricut-license`
+- 发卡：`npm run license:gen -- month` / `year` / `trial`（可加 `--count 5`）
+- **内测过渡码**（试用至 2026-09-30）：
+  - `KC-BETA-2026-THANKS`
+  - `KC-BETA-FRIEND-PASS`
+- **未做**：云端账号、Stripe（二期）
 
-### 去水印质量
+## 今日已完成（收费）
 
-- **AI 修图**：智能混合（蒙版外扩 → 铺底色 → LaMa → 核心区巩固）
-- **快速覆盖**：纯色块真正实色；铺色+窄羽化；铺色+AI修边（先铺色再 AI）
-- **双水印修复**：第二次起在 **上次结果上继续修**，不再从原图重来（修 A 再修 B，A 不会回来）
+- `pricing.ts` / `license.ts` / `usageQuota.ts`
+- `UpgradeProModal` + 侧栏升级入口 / 今日额度徽章
+- 去水印 / 批量流水线 / 去背景入口额度拦截
+- `scripts/generate-license.mjs` 本地发卡
 
-### 背景
+## 早前功能（摘要）
 
-- `processedDataUrl`（去水印）与 `bgRemovedDataUrl`（去背景）**分层存储**
-- 换背景色不再导致水印「复活」
+- AI 修图、快速覆盖、双水印链式、智能取色、可旋转红框、Mercari 预设、批量 ZIP
 
-### 学习
-
-- 按平台本地学习底色；手动吸色权重更高；样本多了更信任历史色
-- 侧栏显示：已从 N 张学习 / 刚开始学 · 学习中 · 学习成熟
-
-### 其他（早前已有）
-
-- 可旋转红框、Mercari 斜框预设、智能识别单框
-- 蒙版羽化减「框印」；批量确认、流水线、设置导出导入
-- `npx tsc --noEmit` 通过
-
-## 明日测试前准备
-
-| 项 | 说明 |
-|----|------|
-| 启动 | `cd C:\Users\feng3\kiricut; npm run dev` → http://localhost:3000 |
-| 样图 | 放入 `test-samples/`（见 `docs/TEST.md`） |
-| 问卷 | 文案 `docs/BETA_SURVEY.md`；链接填入 `src/lib/betaFeedback.ts` 的 `BETA_SURVEY_URL` 后侧栏才显示入口 |
-| 强刷 | 测试前 `Ctrl+Shift+R` |
-
-## 待办（测试后）
+## 待办
 
 1. 批量失败标红 + 单张重试
 2. 批量缩略图显示店铺 LOGO
-3. 问卷链接上线 + 测试话术定稿
-4. 收费规则 / 真云端账号（未做）
+3. 填入真实客服微信号 + 收款码图后对外宣布结束纯免费
+4. 二期：云端账号 / 自动发码
 
 ## localStorage
 
 - `kiricut-preferences` — 平台、zone、coverSize、shopWatermark、locale 等
-- `kiricut-cover-color-learning` — 按平台学习取色（含校正权重）
+- `kiricut-cover-color-learning` — 按平台学习取色
+- `kiricut-license` — Pro 激活信息
+- `kiricut-usage-quota` — 免费日额度计数
 
-## 关键文件（今日动过）
+## 关键文件（收费）
 
-- `src/components/KiriCutApp.tsx` — 双水印链式处理、背景分层
-- `src/components/SmartColorLearnPanel.tsx` — 智能取色 UI
-- `src/components/EditableCoverZone.tsx` — 可拖动控制条
-- `src/lib/watermarkInpaint.ts` — AI 智能混合
-- `src/lib/watermarkFill.ts` — 覆盖三种模式
-- `src/lib/coverColorLearn.ts` — 学习算法加强
+- `src/lib/pricing.ts` · `license.ts` · `usageQuota.ts`
+- `src/components/UpgradeProModal.tsx`
+- `src/components/KiriCutApp.tsx` · `ControlPanel.tsx`
+- `src/lib/i18n.ts`
+- `scripts/generate-license.mjs`
+- `public/pay/README.md`

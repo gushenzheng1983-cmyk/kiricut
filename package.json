@@ -14,7 +14,8 @@
     "deploy:vps:bootstrap": "python scripts/deploy-vps.py --bootstrap-git",
     "deploy:vps:tar": "python scripts/deploy-vps.py --sync-tar",
     "vps:health": "python scripts/vps-ops.py health",
-    "vps:diagnose": "python scripts/vps-ops.py diagnose"
+    "vps:diagnose": "python scripts/vps-ops.py diagnose",
+    "license:gen": "node scripts/generate-license.mjs"
   },
   "dependencies": {
     "jszip": "^3.10.1",

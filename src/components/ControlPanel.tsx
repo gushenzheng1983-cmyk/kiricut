@@ -135,6 +135,12 @@ interface ControlPanelProps {
   coverBlendMode: CoverBlendMode;
   onCoverBlendModeChange: (mode: CoverBlendMode) => void;
   onImportSettings: (file: File) => void;
+  isPro: boolean;
+  proExpiresAt: string | null;
+  dailyUsed: number;
+  dailyLimit: number | null;
+  onOpenUpgrade: () => void;
+  onOpenSupport: () => void;
 }
 
 const STEP_ACCENTS = {
@@ -446,6 +452,12 @@ export default function ControlPanel({
   coverBlendMode,
   onCoverBlendModeChange,
   onImportSettings,
+  isPro,
+  proExpiresAt,
+  dailyUsed,
+  dailyLimit,
+  onOpenUpgrade,
+  onOpenSupport,
 }: ControlPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchInputRef = useRef<HTMLInputElement>(null);
@@ -555,6 +567,49 @@ export default function ControlPanel({
               {t(locale, "langEn")}
             </button>
           </div>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          {isPro ? (
+            <button
+              type="button"
+              onClick={onOpenUpgrade}
+              className="min-w-0 flex-1 rounded-lg border border-emerald-400/35 bg-emerald-500/15 px-2 py-1.5 text-left"
+            >
+              <span className="text-[10px] font-bold text-emerald-200">
+                {t(locale, "proBadge")}
+              </span>
+              {proExpiresAt && (
+                <span className="ml-1.5 text-[9px] text-emerald-200/70">
+                  {t(locale, "proActiveUntil", { date: proExpiresAt })}
+                </span>
+              )}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onOpenUpgrade}
+                className="rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1.5 text-[10px] font-bold text-black shadow-md shadow-amber-500/25"
+              >
+                {t(locale, "proUpgradeBtn")}
+              </button>
+              {dailyLimit !== null && (
+                <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[9px] font-semibold text-white/55">
+                  {t(locale, "proQuotaBadge", {
+                    used: dailyUsed,
+                    limit: dailyLimit,
+                  })}
+                </span>
+              )}
+            </>
+          )}
+          <button
+            type="button"
+            onClick={onOpenSupport}
+            className="shrink-0 rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-1.5 text-[10px] font-bold text-cyan-100"
+          >
+            {t(locale, "supportBtn")}
+          </button>
         </div>
       </header>
 
@@ -1653,6 +1708,13 @@ export default function ControlPanel({
               ? t(locale, "batchDownload", { count: batchDoneCount })
               : t(locale, "footerDownload")
             : t(locale, "footerDownloadNeed")}
+        </button>
+        <button
+          type="button"
+          onClick={onOpenSupport}
+          className="mt-1.5 w-full rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-2 py-1.5 text-[10px] font-semibold text-cyan-100 hover:bg-cyan-500/18"
+        >
+          {t(locale, "supportBtn")} · {t(locale, "supportCaseRefund")}
         </button>
         <p className="mt-1.5 text-center text-[9px] text-white/35">
           v{APP_VERSION} · {BUILD_SHA}
