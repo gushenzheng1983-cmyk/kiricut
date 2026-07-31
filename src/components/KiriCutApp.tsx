@@ -13,10 +13,12 @@ import {
 import { getLicenseSummary } from "@/lib/license";
 import { PRICING } from "@/lib/pricing";
 import {
+  canExport,
   canProcess,
-  getDailyUsed,
+  consumeFreeExport,
+  getFreeExportsRemaining,
   getMaxBatchSize,
-  recordUsage,
+  hasUsedFreeExport,
 } from "@/lib/usageQuota";
 import { removeImageBackground } from "@/lib/backgroundRemoval";
 import { preloadAllModels } from "@/lib/preloadModels";
@@ -186,20 +188,21 @@ export default function KiriCutApp() {
   const activeItem = batchItems[activeIndex] ?? null;
   const isBatchMode = batchItems.length > 1;
   const licenseInfo = useMemo(() => getLicenseSummary(), [licenseTick]);
-  const dailyUsed = useMemo(() => getDailyUsed(), [quotaTick, licenseTick]);
-  const dailyLimit = licenseInfo.isPro ? null : PRICING.freeDailyQuota;
+  const freeExportsRemaining = useMemo(
+    () => getFreeExportsRemaining(),
+    [quotaTick, licenseTick]
+  );
+  const freeExportUsed = useMemo(
+    () => hasUsedFreeExport(),
+    [quotaTick, licenseTick]
+  );
 
   const ensureCanProcess = useCallback(
     (requested: number): boolean => {
       const check = canProcess(requested);
       if (check.ok) return true;
-      if (check.reason === "daily_quota") {
-        setStatusMessage(
-          t(locale, "proQuotaDailyReached", {
-            used: check.used,
-            limit: check.limit,
-          })
-        );
+      if (check.reason === "free_export_used") {
+        setStatusMessage(t(locale, "proQuotaDailyReached"));
       } else {
         setStatusMessage(
           t(locale, "proQuotaBatchLimit", {
@@ -214,6 +217,23 @@ export default function KiriCutApp() {
     },
     [locale]
   );
+
+  const ensureCanExport = useCallback((): boolean => {
+    const check = canExport();
+    if (check.ok) return true;
+    setStatusMessage(t(locale, "proQuotaDailyReached"));
+    setShowUpgradeModal(true);
+    return false;
+  }, [locale]);
+
+  /** 成功下载后消耗免费体验；用完立刻强提示开通 Pro */
+  const afterSuccessfulExport = useCallback(() => {
+    if (licenseInfo.isPro) return;
+    consumeFreeExport();
+    setQuotaTick((n) => n + 1);
+    setStatusMessage(t(locale, "proQuotaDailyReached"));
+    setShowUpgradeModal(true);
+  }, [licenseInfo.isPro, locale]);
 
   const originalImageDataUrl = activeItem?.originalDataUrl ?? null;
   const processedImageDataUrl = activeItem?.processedDataUrl ?? null;
@@ -276,19 +296,26 @@ export default function KiriCutApp() {
     }).catch(() => undefined);
   }, []);
 
-  /** 免费用户打开页面：自动弹出大号收款码（同会话只弹一次；侧栏也常驻 QR） */
+  /**
+   * 免费用户：侧栏常驻 Alipay QR。
+   * - 免费体验已用完 → 每次进入都强弹付费墙
+   * - 尚有免费体验 → 同会话只软提示一次
+   */
   useEffect(() => {
     if (!prefsLoaded) return;
     if (getLicenseSummary().isPro) return;
-    try {
-      if (sessionStorage.getItem("kiricut-pay-prompt-shown") === "1") return;
-      sessionStorage.setItem("kiricut-pay-prompt-shown", "1");
-    } catch {
-      /* private mode 等：仍弹出 */
+    const locked = hasUsedFreeExport();
+    if (!locked) {
+      try {
+        if (sessionStorage.getItem("kiricut-pay-prompt-shown") === "1") return;
+        sessionStorage.setItem("kiricut-pay-prompt-shown", "1");
+      } catch {
+        /* private mode 等：仍弹出 */
+      }
     }
     const timer = window.setTimeout(() => setShowUpgradeModal(true), 400);
     return () => window.clearTimeout(timer);
-  }, [prefsLoaded]);
+  }, [prefsLoaded, quotaTick]);
 
   useEffect(() => {
     const prefs = loadPreferences();
@@ -630,6 +657,12 @@ export default function KiriCutApp() {
   };
 
   const handleUpload = async (files: File[]) => {
+    if (!licenseInfo.isPro && hasUsedFreeExport()) {
+      setStatusMessage(t(locale, "proQuotaDailyReached"));
+      setShowUpgradeModal(true);
+      return;
+    }
+
     const maxBatch = getMaxBatchSize();
     const imageFiles = files
       .filter((f) => f.type.startsWith("image/"))
@@ -987,11 +1020,6 @@ export default function KiriCutApp() {
         }
       );
 
-      if (successes.length > 0) {
-        recordUsage(successes.length);
-        setQuotaTick((n) => n + 1);
-      }
-
       setStatus("idle");
       setBatchProgressCurrent(0);
       setModelProgress(0);
@@ -1055,8 +1083,6 @@ export default function KiriCutApp() {
         return;
       }
 
-      recordUsage(successes.length);
-      setQuotaTick((n) => n + 1);
       setStatusMessage(t(locale, "pipelinePackaging"));
 
       const platformTag = selectedPlatformId ?? "export";
@@ -1071,17 +1097,21 @@ export default function KiriCutApp() {
         downloadDataUrl(successes[0].dataUrl, `${name}-original.png`);
       }
 
+      afterSuccessfulExport();
+
       setStatus("idle");
       setBatchProgressCurrent(0);
       refreshLearningStats();
-      setStatusMessage(
-        failed > 0
-          ? t(locale, "pipelineDonePartial", {
-              count: successes.length,
-              failed,
-            })
-          : t(locale, "pipelineDone", { count: successes.length })
-      );
+      if (licenseInfo.isPro) {
+        setStatusMessage(
+          failed > 0
+            ? t(locale, "pipelineDonePartial", {
+                count: successes.length,
+                failed,
+              })
+            : t(locale, "pipelineDone", { count: successes.length })
+        );
+      }
     } catch (error) {
       setStatus("idle");
       setBatchProgressCurrent(0);
@@ -1137,8 +1167,6 @@ export default function KiriCutApp() {
         URL.revokeObjectURL(prevBg);
       }
       updateBatchItem(activeItem.id, { bgRemovedDataUrl: result });
-      recordUsage(1);
-      setQuotaTick((n) => n + 1);
       setStatus("idle");
       setModelProgress(0);
       setStatusMessage(t(locale, "statusBgDone"));
@@ -1242,6 +1270,8 @@ export default function KiriCutApp() {
   };
 
   const handleDownload = async () => {
+    if (!ensureCanExport()) return;
+
     const downloadable = batchItems.filter((i) => i.processedDataUrl);
     const sizeSuffix = getExportFilenameSuffix();
     const platformTag = selectedPlatformId ?? "export";
@@ -1258,6 +1288,7 @@ export default function KiriCutApp() {
           exportedItems,
           `kiricut-${platformTag}-${sizeSuffix}-${Date.now()}.zip`
         );
+        afterSuccessfulExport();
         return;
       }
 
@@ -1268,6 +1299,7 @@ export default function KiriCutApp() {
         const name =
           activeItem?.fileName.replace(/\.[^.]+$/, "") ?? "kiricut";
         downloadDataUrl(exported, `${name}-${sizeSuffix}.png`);
+        afterSuccessfulExport();
       }
     } catch (error) {
       setStatusMessage(
@@ -1420,8 +1452,8 @@ export default function KiriCutApp() {
           onImportSettings={handleImportSettings}
           isPro={licenseInfo.isPro}
           proExpiresAt={licenseInfo.expiresAt}
-          dailyUsed={dailyUsed}
-          dailyLimit={dailyLimit}
+          freeExportsRemaining={freeExportsRemaining}
+          freeExportUsed={freeExportUsed}
           onOpenUpgrade={() => setShowUpgradeModal(true)}
           onOpenSupport={() => setShowSupportModal(true)}
         />

@@ -138,8 +138,9 @@ interface ControlPanelProps {
   onImportSettings: (file: File) => void;
   isPro: boolean;
   proExpiresAt: string | null;
-  dailyUsed: number;
-  dailyLimit: number | null;
+  /** 免费体验剩余导出张数；Pro 为 null */
+  freeExportsRemaining: number | null;
+  freeExportUsed: boolean;
   onOpenUpgrade: () => void;
   onOpenSupport: () => void;
 }
@@ -455,8 +456,8 @@ export default function ControlPanel({
   onImportSettings,
   isPro,
   proExpiresAt,
-  dailyUsed,
-  dailyLimit,
+  freeExportsRemaining,
+  freeExportUsed,
   onOpenUpgrade,
   onOpenSupport,
 }: ControlPanelProps) {
@@ -594,12 +595,19 @@ export default function ControlPanel({
               >
                 {t(locale, "proUpgradeBtn")}
               </button>
-              {dailyLimit !== null && (
-                <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[9px] font-semibold text-white/55">
-                  {t(locale, "proQuotaBadge", {
-                    used: dailyUsed,
-                    limit: dailyLimit,
-                  })}
+              {freeExportsRemaining !== null && (
+                <span
+                  className={`rounded-md border px-2 py-1 text-[9px] font-semibold ${
+                    freeExportUsed
+                      ? "border-rose-400/40 bg-rose-500/15 text-rose-100"
+                      : "border-white/10 bg-white/5 text-white/55"
+                  }`}
+                >
+                  {freeExportUsed
+                    ? t(locale, "proQuotaBadgeUsed")
+                    : t(locale, "proQuotaBadgeLeft", {
+                        count: freeExportsRemaining,
+                      })}
                 </span>
               )}
             </>
@@ -613,9 +621,17 @@ export default function ControlPanel({
           </button>
         </div>
         {!isPro && (
-          <div className="mt-2 w-full rounded-xl border border-amber-400/50 bg-gradient-to-r from-amber-500/25 to-orange-500/20 px-3 py-2.5 shadow-lg shadow-amber-500/10">
+          <div
+            className={`mt-2 w-full rounded-xl border px-3 py-2.5 shadow-lg ${
+              freeExportUsed
+                ? "border-rose-400/55 bg-gradient-to-r from-rose-600/30 to-amber-500/25 shadow-rose-500/15"
+                : "border-amber-400/50 bg-gradient-to-r from-amber-500/25 to-orange-500/20 shadow-amber-500/10"
+            }`}
+          >
             <p className="text-[12px] font-extrabold text-amber-100">
-              {t(locale, "proPayBannerTitle")}
+              {freeExportUsed
+                ? t(locale, "proQuotaBadgeUsed")
+                : t(locale, "proPayBannerTitle")}
             </p>
             <p className="mt-0.5 text-[9px] leading-relaxed text-amber-100/75">
               {t(locale, "proPayBannerHint", {
@@ -633,9 +649,9 @@ export default function ControlPanel({
                 <img
                   src={PRICING.alipayQrPath}
                   alt="Alipay"
-                  width={168}
-                  height={168}
-                  className="mx-auto h-40 w-40 rounded-xl border border-white/20 bg-white object-contain p-1.5"
+                  width={180}
+                  height={180}
+                  className="mx-auto h-44 w-44 rounded-xl border-2 border-sky-300/50 bg-white object-contain p-1.5"
                 />
                 <p className="mt-1.5 text-[11px] font-bold text-sky-200">
                   {t(locale, "proAlipayOnly")}

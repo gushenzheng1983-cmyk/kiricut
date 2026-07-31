@@ -45,6 +45,7 @@ npm run dev
 3. Mercari 斜水印：旋转红框 + AI；平台按钮自动 `getDiagonalWatermarkPreset()`
 4. 保持原图画质；小步改动；改完跑 `npx tsc --noEmit`
 5. 不要未经要求 commit / push
+6. **免费 = 终身 1 次导出**（`localStorage` `kiricut-free-export-used`），用完硬锁处理/导出直至开通 Pro；无每日额度
 
 ## 常用文件
 

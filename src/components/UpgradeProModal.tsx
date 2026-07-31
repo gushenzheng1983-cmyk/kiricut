@@ -110,7 +110,7 @@ export default function UpgradeProModal({
             </p>
             <p className="mt-1 text-lg font-black text-white">¥0</p>
             <ul className="mt-2 space-y-1 text-[10px] text-white/60">
-              <li>· {t(locale, "proFreeDaily", { count: PRICING.freeDailyQuota })}</li>
+              <li>· {t(locale, "proFreeDaily", { count: PRICING.freeLifetimeExports })}</li>
               <li>· {t(locale, "proFreeBatch", { count: PRICING.freeMaxBatch })}</li>
             </ul>
           </div>

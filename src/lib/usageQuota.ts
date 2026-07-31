@@ -1,51 +1,57 @@
 import { isPro } from "./license";
 import { PRICING } from "./pricing";
 
-const STORAGE_KEY = "kiricut-usage-quota";
+/** 免费体验导出是否已用（终身/本浏览器，不按日重置） */
+const FREE_EXPORT_KEY = "kiricut-free-export-used";
 
-type QuotaState = {
-  date: string; // YYYY-MM-DD local
-  count: number;
-};
-
-function todayKey(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function readState(): QuotaState {
-  if (typeof window === "undefined") return { date: todayKey(), count: 0 };
+function readFreeExportUsed(): boolean {
+  if (typeof window === "undefined") return false;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { date: todayKey(), count: 0 };
-    const parsed = JSON.parse(raw) as QuotaState;
-    if (parsed.date !== todayKey()) return { date: todayKey(), count: 0 };
-    return { date: parsed.date, count: Number(parsed.count) || 0 };
+    return localStorage.getItem(FREE_EXPORT_KEY) === "1";
   } catch {
-    return { date: todayKey(), count: 0 };
+    return false;
   }
 }
 
-function writeState(state: QuotaState): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function writeFreeExportUsed(): void {
+  try {
+    localStorage.setItem(FREE_EXPORT_KEY, "1");
+  } catch {
+    /* private mode 等：尽力写入；读不到时会再挡一次 */
+  }
 }
 
-export function getDailyUsed(): number {
-  return readState().count;
+/** 是否仍有免费导出额度（Pro 视为无限） */
+export function hasFreeExportLeft(): boolean {
+  if (isPro()) return true;
+  return !readFreeExportUsed();
 }
 
-export function getDailyLimit(): number | null {
+/** 免费导出是否已消耗（非 Pro） */
+export function hasUsedFreeExport(): boolean {
+  if (isPro()) return false;
+  return readFreeExportUsed();
+}
+
+/**
+ * 成功导出后调用：消耗唯一的免费体验导出。
+ * Pro 不计数。
+ */
+export function consumeFreeExport(): void {
+  if (isPro()) return;
+  writeFreeExportUsed();
+}
+
+/** 剩余免费导出张数；Pro 返回 null（不限） */
+export function getFreeExportsRemaining(): number | null {
   if (isPro()) return null;
-  return PRICING.freeDailyQuota;
+  return hasFreeExportLeft() ? PRICING.freeLifetimeExports : 0;
 }
 
-export function getRemainingToday(): number | null {
-  const limit = getDailyLimit();
-  if (limit === null) return null;
-  return Math.max(0, limit - getDailyUsed());
+/** 已用免费导出张数（0 或 1）；Pro 返回 0 */
+export function getFreeExportsUsed(): number {
+  if (isPro()) return 0;
+  return hasUsedFreeExport() ? PRICING.freeLifetimeExports : 0;
 }
 
 export function getMaxBatchSize(): number {
@@ -54,7 +60,13 @@ export function getMaxBatchSize(): number {
 
 export type QuotaCheck =
   | { ok: true }
-  | { ok: false; reason: "daily_quota" | "batch_limit"; used: number; limit: number; requested: number };
+  | {
+      ok: false;
+      reason: "free_export_used" | "batch_limit";
+      used: number;
+      limit: number;
+      requested: number;
+    };
 
 /** 处理前检查：requested = 本次将处理的张数 */
 export function canProcess(requested: number): QuotaCheck {
@@ -73,23 +85,29 @@ export function canProcess(requested: number): QuotaCheck {
 
   if (isPro()) return { ok: true };
 
-  const used = getDailyUsed();
-  const limit = PRICING.freeDailyQuota;
-  if (used + requested > limit) {
+  if (!hasFreeExportLeft()) {
     return {
       ok: false,
-      reason: "daily_quota",
-      used,
-      limit,
+      reason: "free_export_used",
+      used: PRICING.freeLifetimeExports,
+      limit: PRICING.freeLifetimeExports,
       requested,
     };
   }
   return { ok: true };
 }
 
-export function recordUsage(count: number): void {
-  if (count <= 0) return;
-  if (isPro()) return;
-  const state = readState();
-  writeState({ date: todayKey(), count: state.count + count });
+/** 导出前检查：免费体验已用完则拦截 */
+export function canExport(): QuotaCheck {
+  if (isPro()) return { ok: true };
+  if (!hasFreeExportLeft()) {
+    return {
+      ok: false,
+      reason: "free_export_used",
+      used: PRICING.freeLifetimeExports,
+      limit: PRICING.freeLifetimeExports,
+      requested: 1,
+    };
+  }
+  return { ok: true };
 }

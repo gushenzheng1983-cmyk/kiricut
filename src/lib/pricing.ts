@@ -1,10 +1,16 @@
-/** Pro 定价与客服配置（方案一：微信/支付宝 + 人工发码） */
+/** Pro 定价与客服配置（方案一：支付宝 + 人工发码） */
 
 export const PRICING = {
   monthlyPriceCny: 68,
   yearlyPriceCny: 398,
-  freeDailyQuota: 15,
-  freeMaxBatch: 5,
+  /** 免费用户终身可导出张数（按浏览器 localStorage，非每日重置） */
+  freeLifetimeExports: 1,
+  /**
+   * @deprecated 已弃用每日额度模型；保留字段避免旧引用崩，请用 freeLifetimeExports
+   */
+  freeDailyQuota: 0,
+  /** 免费版单次批量上限（免费仅 1 张体验导出） */
+  freeMaxBatch: 1,
   proMaxBatch: 120,
 
   /**
